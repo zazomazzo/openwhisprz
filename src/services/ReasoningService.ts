@@ -391,11 +391,20 @@ class ReasoningService extends BaseReasoningService {
     if (!trimmedModel) {
       throw new Error("No reasoning model selected");
     }
-    const provider = getModelProvider(trimmedModel);
+    const configuredProvider =
+      typeof window !== "undefined" ? window.localStorage?.getItem("reasoningProvider") || "" : "";
+    const normalizedConfiguredProvider =
+      configuredProvider && configuredProvider !== "auto"
+        ? configuredProvider === "custom"
+          ? "openai"
+          : configuredProvider
+        : "";
+    const provider = normalizedConfiguredProvider || getModelProvider(trimmedModel);
 
     logger.logReasoning("PROVIDER_SELECTION", {
       model: trimmedModel,
       provider,
+      configuredProvider,
       agentName,
       hasConfig: Object.keys(config).length > 0,
       textLength: text.length,
