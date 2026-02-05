@@ -28,12 +28,6 @@ class LocalReasoningService {
       hasConfig: Object.keys(config).length > 0,
     });
 
-    if (process.env.REASONING_PROVIDER && process.env.REASONING_PROVIDER !== "local") {
-      throw new Error(
-        `Local reasoning is disabled while provider is set to ${process.env.REASONING_PROVIDER}`
-      );
-    }
-
     if (this.isProcessing) {
       throw new Error("Already processing a request");
     }
@@ -42,12 +36,6 @@ class LocalReasoningService {
     const startTime = Date.now();
 
     try {
-      const models = await modelManager.getAllModels();
-      const matchedModel = models.find((model) => model.id === modelId);
-      if (!matchedModel || !matchedModel.isDownloaded) {
-        throw new Error(`Local model ${modelId} is not downloaded`);
-      }
-
       debugLogger.logReasoning("LOCAL_BRIDGE_PROMPT", {
         promptLength: text.length,
         hasAgentName: !!agentName,
