@@ -242,7 +242,17 @@ export function getReasoningModelLabel(modelId: string): string {
   return model?.fullLabel || modelId;
 }
 
-export function getModelProvider(modelId: string): string {
+export function getModelProvider(
+  modelId: string,
+  preferredProvider?: string,
+  options: { allowLocalFallback?: boolean } = {}
+): string {
+  const { allowLocalFallback = true } = options;
+  const normalizedPreferred = preferredProvider?.trim?.().toLowerCase();
+  if (normalizedPreferred && normalizedPreferred !== "auto") {
+    if (normalizedPreferred === "custom") return "openai";
+    return normalizedPreferred;
+  }
   const model = getAllReasoningModels().find((m) => m.value === modelId);
 
   if (!model) {
@@ -259,13 +269,15 @@ export function getModelProvider(modelId: string): string {
       modelId.includes("gemma2-")
     )
       return "groq";
-    if (
-      modelId.includes("qwen") ||
-      modelId.includes("llama") ||
-      modelId.includes("mistral") ||
-      modelId.includes("gpt-oss-20b-mxfp4")
-    )
-      return "local";
+    if (allowLocalFallback) {
+      if (
+        modelId.includes("qwen") ||
+        modelId.includes("llama") ||
+        modelId.includes("mistral") ||
+        modelId.includes("gpt-oss-20b-mxfp4")
+      )
+        return "local";
+    }
   }
 
   return model?.provider || "openai";

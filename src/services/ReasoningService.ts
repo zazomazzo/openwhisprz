@@ -391,7 +391,8 @@ class ReasoningService extends BaseReasoningService {
     if (!trimmedModel) {
       throw new Error("No reasoning model selected");
     }
-    const provider = getModelProvider(trimmedModel);
+    const storedProvider = window.localStorage?.getItem("reasoningProvider") || "";
+    const provider = getModelProvider(trimmedModel, storedProvider);
 
     logger.logReasoning("PROVIDER_SELECTION", {
       model: trimmedModel,
