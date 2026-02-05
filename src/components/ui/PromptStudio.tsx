@@ -123,7 +123,14 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
     try {
       const useReasoningModel = localStorage.getItem("useReasoningModel") !== "false";
       const reasoningModel = localStorage.getItem("reasoningModel") || "";
-      const reasoningProvider = reasoningModel ? getModelProvider(reasoningModel) : "openai";
+      const storedProvider = (localStorage.getItem("reasoningProvider") || "").trim().toLowerCase();
+      const reasoningProvider = reasoningModel
+        ? storedProvider && storedProvider !== "auto"
+          ? storedProvider === "custom"
+            ? "openai"
+            : storedProvider
+          : getModelProvider(reasoningModel)
+        : "openai";
 
       logger.debug(
         "PromptStudio test starting",
@@ -350,7 +357,16 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
           (() => {
             const useReasoningModel = localStorage.getItem("useReasoningModel") === "true";
             const reasoningModel = localStorage.getItem("reasoningModel") || "";
-            const reasoningProvider = reasoningModel ? getModelProvider(reasoningModel) : "openai";
+            const storedProvider = (localStorage.getItem("reasoningProvider") || "")
+              .trim()
+              .toLowerCase();
+            const reasoningProvider = reasoningModel
+              ? storedProvider && storedProvider !== "auto"
+                ? storedProvider === "custom"
+                  ? "openai"
+                  : storedProvider
+                : getModelProvider(reasoningModel)
+              : "openai";
             const providerConfig = PROVIDER_CONFIG[reasoningProvider] || {
               label: reasoningProvider.charAt(0).toUpperCase() + reasoningProvider.slice(1),
             };
