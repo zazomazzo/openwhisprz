@@ -345,6 +345,12 @@ class ClipboardManager {
           if (newToken) {
             this._savePortalToken(newToken);
           }
+          // If no token existed before and none was returned, the portal
+          // exited 0 without actually pasting (observed on KDE Wayland).
+          if (!restoreToken && !newToken) {
+            reject(new Error("linux-fast-paste --portal exited 0 but produced no token"));
+            return;
+          }
           resolve(newToken || null);
         } else if (code === 5) {
           reject(new Error("portal support not compiled in"));
