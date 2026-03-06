@@ -88,6 +88,7 @@ export default function PersonalNotesView({
     transcript: meetingTranscript,
     partialTranscript: meetingPartialTranscript,
     error: meetingError,
+    prepareTranscription: prepareMeetingTranscription,
     startTranscription: startMeetingTranscription,
     stopTranscription: stopMeetingTranscription,
   } = useMeetingTranscription();
@@ -333,6 +334,13 @@ export default function PersonalNotesView({
     },
     [activeNoteId]
   );
+
+  // Pre-warm WebSocket when entering meeting mode (before user hits record)
+  useEffect(() => {
+    if (isMeetingMode) {
+      prepareMeetingTranscription();
+    }
+  }, [isMeetingMode, prepareMeetingTranscription]);
 
   useEffect(() => {
     if (!meetingRecordingRequest || activeNoteId !== meetingRecordingRequest.noteId) return;

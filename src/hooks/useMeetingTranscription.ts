@@ -8,6 +8,7 @@ interface UseMeetingTranscriptionReturn {
   transcript: string;
   partialTranscript: string;
   error: string | null;
+  prepareTranscription: () => Promise<void>;
   startTranscription: () => Promise<void>;
   stopTranscription: () => Promise<void>;
 }
@@ -229,6 +230,8 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
   const micStreamRef = useRef<MediaStream | null>(null);
   const isRecordingRef = useRef(false);
   const isStartingRef = useRef(false);
+  const isPreparedRef = useRef(false);
+  const preparePromiseRef = useRef<Promise<void> | null>(null);
   const ipcCleanupsRef = useRef<Array<() => void>>([]);
 
   const cleanup = useCallback(async () => {
@@ -282,14 +285,18 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
 
     ipcCleanupsRef.current.forEach((fn) => fn());
     ipcCleanupsRef.current = [];
+    isPreparedRef.current = false;
   }, []);
 
   const stopTranscription = useCallback(async () => {
     if (!isRecordingRef.current) return;
+
+    // Signal stop immediately so in-flight startTranscription can abort
+    isRecordingRef.current = false;
+    isStartingRef.current = false;
     setIsRecording(false);
 
     await cleanup();
-    isRecordingRef.current = false;
 
     try {
       const result = await window.electronAPI?.meetingTranscriptionStop?.();
@@ -310,6 +317,44 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
     logger.info("Meeting transcription stopped", {}, "meeting");
   }, [cleanup]);
 
+  const prepareTranscription = useCallback(async () => {
+    if (isPreparedRef.current || isRecordingRef.current || isStartingRef.current) return;
+    if (preparePromiseRef.current) return; // already preparing
+
+    logger.info("Meeting transcription preparing (pre-warming WebSocket)...", {}, "meeting");
+
+    const promise = (async () => {
+      try {
+        const result = await window.electronAPI?.meetingTranscriptionPrepare?.({
+          provider: "openai-realtime",
+          model: "gpt-4o-mini-transcribe",
+        });
+
+        if (result?.success) {
+          isPreparedRef.current = true;
+          logger.info(
+            "Meeting transcription prepared",
+            { alreadyPrepared: result.alreadyPrepared },
+            "meeting"
+          );
+        } else {
+          logger.error("Meeting transcription prepare failed", { error: result?.error }, "meeting");
+        }
+      } catch (err) {
+        logger.error(
+          "Meeting transcription prepare error",
+          { error: (err as Error).message },
+          "meeting"
+        );
+      } finally {
+        preparePromiseRef.current = null;
+      }
+    })();
+
+    preparePromiseRef.current = promise;
+    await promise;
+  }, []);
+
   const startTranscription = useCallback(async () => {
     if (isRecordingRef.current || isStartingRef.current) return;
     isStartingRef.current = true;
@@ -319,14 +364,48 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
     setPartialTranscript("");
     setError(null);
 
+    // Set recording state immediately for instant UI feedback
+    isRecordingRef.current = true;
+    setIsRecording(true);
+
+    // Wait for in-flight prepare to reuse the warm connection
+    if (preparePromiseRef.current) {
+      logger.debug("Waiting for in-flight prepare to finish...", {}, "meeting");
+      await preparePromiseRef.current;
+    }
+
     try {
-      const [startResult, stream] = await Promise.all([
+      const startTime = performance.now();
+
+      const [startResult, stream, micResult] = await Promise.all([
         window.electronAPI?.meetingTranscriptionStart?.({
           provider: "openai-realtime",
           model: "gpt-4o-mini-transcribe",
         }),
         getSystemAudioStream(),
+        getMeetingMicConstraints().then((constraints) =>
+          navigator.mediaDevices.getUserMedia(constraints).catch((err) => {
+            logger.error(
+              "Mic capture failed, continuing with system audio only",
+              { error: (err as Error).message },
+              "meeting"
+            );
+            return null;
+          })
+        ),
       ]);
+
+      const streamsMs = performance.now() - startTime;
+
+      // Abort if stop was called during setup
+      if (!isRecordingRef.current) {
+        logger.info("Meeting transcription aborted during setup (stop called)", {}, "meeting");
+        stream?.getTracks().forEach((t) => t.stop());
+        micResult?.getTracks().forEach((t) => t.stop());
+        isStartingRef.current = false;
+        return;
+      }
+
       if (!startResult?.success) {
         logger.error(
           "Meeting transcription IPC start failed",
@@ -334,20 +413,23 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
           "meeting"
         );
         stream?.getTracks().forEach((track) => track.stop());
+        micResult?.getTracks().forEach((track) => track.stop());
+        isRecordingRef.current = false;
         isStartingRef.current = false;
+        setIsRecording(false);
         return;
       }
 
       if (!stream) {
         logger.error("Could not capture system audio for meeting transcription", {}, "meeting");
+        micResult?.getTracks().forEach((track) => track.stop());
         await window.electronAPI?.meetingTranscriptionStop?.();
+        isRecordingRef.current = false;
         isStartingRef.current = false;
+        setIsRecording(false);
         return;
       }
       streamRef.current = stream;
-
-      const audioContext = new AudioContext({ sampleRate: 24000 });
-      audioContextRef.current = audioContext;
 
       const partialCleanup = window.electronAPI?.onMeetingTranscriptionPartial?.((text) => {
         setPartialTranscript(text);
@@ -369,7 +451,10 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
       const pendingAudioChunks: ArrayBuffer[] = [];
       let socketReady = false;
 
-      const { source, processor } = await createAudioPipeline({
+      const audioContext = new AudioContext({ sampleRate: 24000 });
+      audioContextRef.current = audioContext;
+
+      const systemPipelinePromise = createAudioPipeline({
         stream,
         context: audioContext,
         label: "Meeting system",
@@ -391,20 +476,15 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
           pendingAudioChunks.push(chunk.slice(0));
         },
       });
-      sourceRef.current = source;
-      processorRef.current = processor;
 
-      try {
-        const micStream = await navigator.mediaDevices.getUserMedia(
-          await getMeetingMicConstraints()
-        );
-        micStreamRef.current = micStream;
-
+      let micPipelinePromise: Promise<void> | null = null;
+      if (micResult) {
+        micStreamRef.current = micResult;
         const micContext = new AudioContext({ sampleRate: 24000 });
         micContextRef.current = micContext;
 
-        const { source: micSource, processor: micProcessor } = await createAudioPipeline({
-          stream: micStream,
+        micPipelinePromise = createAudioPipeline({
+          stream: micResult,
           context: micContext,
           label: "Meeting mic",
           onChunk: (chunk) => {
@@ -415,39 +495,59 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
             }
             pendingAudioChunks.push(chunk.slice(0));
           },
-        });
-        micSourceRef.current = micSource;
-        micProcessorRef.current = micProcessor;
+        }).then(({ source, processor }) => {
+          micSourceRef.current = source;
+          micProcessorRef.current = processor;
 
-        const micTrack = micStream.getAudioTracks()[0];
-        logger.info(
-          "Mic capture started for meeting transcription",
-          {
-            label: micTrack?.label,
-            settings: micTrack?.getSettings(),
-          },
-          "meeting"
-        );
-      } catch (micErr) {
-        logger.error(
-          "Mic capture failed, continuing with system audio only",
-          { error: (micErr as Error).message },
-          "meeting"
-        );
+          const micTrack = micResult.getAudioTracks()[0];
+          logger.info(
+            "Mic capture started for meeting transcription",
+            {
+              label: micTrack?.label,
+              settings: micTrack?.getSettings(),
+            },
+            "meeting"
+          );
+        });
       }
 
-      isRecordingRef.current = true;
+      const [systemPipeline] = await Promise.all(
+        [systemPipelinePromise, micPipelinePromise].filter(Boolean)
+      );
+
+      if (systemPipeline) {
+        sourceRef.current = systemPipeline.source;
+        processorRef.current = systemPipeline.processor;
+      }
+
+      // Abort if stop was called during pipeline setup
+      if (!isRecordingRef.current) {
+        logger.info(
+          "Meeting transcription aborted during pipeline setup (stop called)",
+          {},
+          "meeting"
+        );
+        isStartingRef.current = false;
+        await cleanup();
+        return;
+      }
+
       isStartingRef.current = false;
-      setIsRecording(true);
       socketReady = true;
 
       for (const chunk of pendingAudioChunks) {
         window.electronAPI?.meetingTranscriptionSend?.(chunk);
       }
 
+      const totalMs = performance.now() - startTime;
       logger.info(
         "Meeting transcription started successfully",
-        { bufferedChunks: pendingAudioChunks.length },
+        {
+          bufferedChunks: pendingAudioChunks.length,
+          streamsMs: Math.round(streamsMs),
+          totalMs: Math.round(totalMs),
+          wasPrepared: isPreparedRef.current,
+        },
         "meeting"
       );
     } catch (err) {
@@ -456,17 +556,22 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
         { error: (err as Error).message },
         "meeting"
       );
+      isRecordingRef.current = false;
       isStartingRef.current = false;
+      setIsRecording(false);
       await cleanup();
     }
   }, [cleanup]);
 
   useEffect(() => {
+    getMeetingWorkletBlobUrl();
+  }, []);
+
+  useEffect(() => {
     return () => {
+      // Don't reset isRecordingRef here — StrictMode double-mount would abort in-flight setup
       if (isRecordingRef.current) {
-        void cleanup().finally(() => {
-          isRecordingRef.current = false;
-        });
+        void cleanup();
       }
     };
   }, [cleanup]);
@@ -476,6 +581,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
     transcript,
     partialTranscript,
     error,
+    prepareTranscription,
     startTranscription,
     stopTranscription,
   };

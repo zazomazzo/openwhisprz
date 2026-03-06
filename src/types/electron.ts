@@ -1065,6 +1065,11 @@ declare global {
       }>;
 
       // Meeting transcription (streaming)
+      meetingTranscriptionPrepare?: (options: {
+        provider?: string;
+        model?: string;
+        language?: string;
+      }) => Promise<{ success: boolean; alreadyPrepared?: boolean; error?: string }>;
       meetingTranscriptionStart?: (options: {
         provider?: string;
         model?: string;

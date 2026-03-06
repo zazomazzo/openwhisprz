@@ -2189,8 +2189,111 @@ class IPCHandlers {
     });
 
     let meetingTranscriptionStartInProgress = false;
+    let meetingTranscriptionPrepareInProgress = false;
+    let meetingTranscriptionPreparePromise = null;
+
+    const attachMeetingStreamingHandlers = (streaming, win) => {
+      streaming.onPartialTranscript = (text) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send("meeting-transcription-partial", text);
+        }
+      };
+      streaming.onFinalTranscript = (text) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send("meeting-transcription-final", text);
+        }
+      };
+      streaming.onError = (error) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send("meeting-transcription-error", error.message);
+        }
+      };
+    };
+
+    const fetchRealtimeToken = async (event, options) => {
+      const apiUrl = getApiUrl();
+      if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+
+      const cookieHeader = await getSessionCookies(event);
+      if (!cookieHeader) throw new Error("No session cookies available");
+
+      const tokenResponse = await fetch(`${apiUrl}/api/openai-realtime-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieHeader },
+        body: JSON.stringify({ model: options.model, language: options.language }),
+      });
+
+      if (!tokenResponse.ok) {
+        const err = await tokenResponse.json().catch(() => ({}));
+        throw new Error(err.error || `Token request failed: ${tokenResponse.status}`);
+      }
+
+      const { clientSecret } = await tokenResponse.json();
+      if (!clientSecret) throw new Error("No client secret received");
+      return clientSecret;
+    };
+
+    const connectRealtimeStreaming = async (event, options) => {
+      if (this.openaiRealtimeStreaming?.isConnected) {
+        await this.openaiRealtimeStreaming.disconnect();
+      }
+
+      const clientSecret = await fetchRealtimeToken(event, options);
+      this.openaiRealtimeStreaming = new OpenAIRealtimeStreaming();
+
+      const win = BrowserWindow.fromWebContents(event.sender);
+      attachMeetingStreamingHandlers(this.openaiRealtimeStreaming, win);
+
+      await this.openaiRealtimeStreaming.connect({
+        apiKey: clientSecret,
+        model: options.model,
+        language: options.language,
+      });
+
+      return win;
+    };
+
+    // Pre-warm: fetch token + connect WebSocket before user hits record
+    ipcMain.handle("meeting-transcription-prepare", async (event, options = {}) => {
+      if (meetingTranscriptionPrepareInProgress || meetingTranscriptionStartInProgress) {
+        debugLogger.debug("Meeting transcription prepare already in progress, ignoring");
+        return { success: false, error: "Operation in progress" };
+      }
+
+      if (this.openaiRealtimeStreaming?.isConnected) {
+        debugLogger.debug("Meeting transcription already prepared (warm connection)");
+        return { success: true, alreadyPrepared: true };
+      }
+
+      if (options.provider !== "openai-realtime") {
+        return { success: false, error: `Unsupported provider: ${options.provider}` };
+      }
+
+      meetingTranscriptionPrepareInProgress = true;
+      meetingTranscriptionPreparePromise = (async () => {
+        try {
+          await connectRealtimeStreaming(event, options);
+          debugLogger.debug("Meeting transcription prepared (WebSocket warm)");
+          return { success: true };
+        } catch (error) {
+          debugLogger.error("Meeting transcription prepare error", { error: error.message });
+          return { success: false, error: error.message };
+        } finally {
+          meetingTranscriptionPrepareInProgress = false;
+          meetingTranscriptionPreparePromise = null;
+        }
+      })();
+
+      return meetingTranscriptionPreparePromise;
+    });
 
     ipcMain.handle("meeting-transcription-start", async (event, options = {}) => {
+      // Wait for any in-flight prepare to finish before starting
+      if (meetingTranscriptionPreparePromise) {
+        debugLogger.debug("Meeting transcription start: waiting for in-flight prepare");
+        await meetingTranscriptionPreparePromise;
+      }
+
       if (meetingTranscriptionStartInProgress) {
         debugLogger.debug("Meeting transcription start already in progress, ignoring");
         return { success: false, error: "Operation in progress" };
@@ -2198,65 +2301,19 @@ class IPCHandlers {
 
       meetingTranscriptionStartInProgress = true;
       try {
-        const win = BrowserWindow.fromWebContents(event.sender);
+        // If already prepared (warm connection from prepare), just re-attach handlers
+        if (this.openaiRealtimeStreaming?.isConnected) {
+          debugLogger.debug("Meeting transcription start: reusing warm connection");
+          const win = BrowserWindow.fromWebContents(event.sender);
+          attachMeetingStreamingHandlers(this.openaiRealtimeStreaming, win);
+          return { success: true };
+        }
 
         if (options.provider !== "openai-realtime") {
           return { success: false, error: `Unsupported provider: ${options.provider}` };
         }
 
-        const apiUrl = getApiUrl();
-        if (!apiUrl) return { success: false, error: "OpenWhispr API URL not configured" };
-
-        const cookieHeader = await getSessionCookies(event);
-        if (!cookieHeader) return { success: false, error: "No session cookies available" };
-
-        const tokenResponse = await fetch(`${apiUrl}/api/openai-realtime-token`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Cookie: cookieHeader },
-          body: JSON.stringify({ model: options.model, language: options.language }),
-        });
-
-        if (!tokenResponse.ok) {
-          const err = await tokenResponse.json().catch(() => ({}));
-          return {
-            success: false,
-            error: err.error || `Token request failed: ${tokenResponse.status}`,
-          };
-        }
-
-        const { clientSecret } = await tokenResponse.json();
-        if (!clientSecret) return { success: false, error: "No client secret received" };
-
-        if (this.openaiRealtimeStreaming?.isConnected) {
-          await this.openaiRealtimeStreaming.disconnect();
-        }
-
-        this.openaiRealtimeStreaming = new OpenAIRealtimeStreaming();
-
-        this.openaiRealtimeStreaming.onPartialTranscript = (text) => {
-          if (win && !win.isDestroyed()) {
-            win.webContents.send("meeting-transcription-partial", text);
-          }
-        };
-
-        this.openaiRealtimeStreaming.onFinalTranscript = (text) => {
-          if (win && !win.isDestroyed()) {
-            win.webContents.send("meeting-transcription-final", text);
-          }
-        };
-
-        this.openaiRealtimeStreaming.onError = (error) => {
-          if (win && !win.isDestroyed()) {
-            win.webContents.send("meeting-transcription-error", error.message);
-          }
-        };
-
-        await this.openaiRealtimeStreaming.connect({
-          apiKey: clientSecret,
-          model: options.model,
-          language: options.language,
-        });
-
+        await connectRealtimeStreaming(event, options);
         return { success: true };
       } catch (error) {
         debugLogger.error("Meeting transcription start error", { error: error.message });

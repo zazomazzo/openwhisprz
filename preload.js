@@ -446,6 +446,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("meeting-transcribe-chain", blobUrl, opts),
 
   // Meeting transcription (streaming)
+  meetingTranscriptionPrepare: (options) =>
+    ipcRenderer.invoke("meeting-transcription-prepare", options),
   meetingTranscriptionStart: (options) =>
     ipcRenderer.invoke("meeting-transcription-start", options),
   meetingTranscriptionSend: (buffer) => ipcRenderer.send("meeting-transcription-send", buffer),

@@ -21,6 +21,7 @@ interface TranscriptionItemProps {
   onDelete: (id: number) => void;
   onShowAudioInFolder?: (id: number) => void;
   onRetryTranscription?: (id: number) => Promise<void>;
+  onOpenSettings?: () => void;
 }
 
 export default function TranscriptionItem({
@@ -29,6 +30,7 @@ export default function TranscriptionItem({
   onDelete,
   onShowAudioInFolder,
   onRetryTranscription,
+  onOpenSettings,
 }: TranscriptionItemProps) {
   const { t, i18n } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
@@ -78,8 +80,8 @@ export default function TranscriptionItem({
         )}
 
         {isFailed ? (
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <AlertCircle size={14} className="shrink-0 text-destructive" />
+          <div className="flex-1 min-w-0 flex items-start gap-2">
+            <AlertCircle size={14} className="shrink-0 text-destructive mt-0.5" />
             <div className="min-w-0">
               <p className="text-sm text-destructive font-medium">
                 {t("controlPanel.history.transcriptionFailed")}
@@ -89,6 +91,26 @@ export default function TranscriptionItem({
                   {item.error_message}
                 </p>
               )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {hasAudio ? (
+                  <>
+                    <button
+                      onClick={() => onOpenSettings?.()}
+                      className="text-primary hover:underline cursor-pointer"
+                    >
+                      {t("controlPanel.history.failedCtaSettings")}
+                    </button>{" "}
+                    {t("controlPanel.history.failedCtaAndRetry")}
+                  </>
+                ) : (
+                  <button
+                    onClick={() => onOpenSettings?.()}
+                    className="text-primary hover:underline cursor-pointer"
+                  >
+                    {t("controlPanel.history.failedCtaSettingsOnly")}
+                  </button>
+                )}
+              </p>
             </div>
           </div>
         ) : (
