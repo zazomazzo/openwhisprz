@@ -51,6 +51,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - 📅 **Google Calendar Integration**: Connect multiple Google accounts, view upcoming meetings in the sidebar, and receive auto-detection prompts
 - 🎙️ **Live Meeting Transcription**: Record and transcribe meetings in real-time via OpenAI Realtime API with automatic meeting detection (Zoom, Teams, FaceTime)
+- ⚡ **WebSocket Streaming for BYOK**: Real-time OpenAI Realtime API streaming for standard dictation mode, not just meetings — unified streaming path for all transcription
 - 🔍 **Smart Detection**: Combines process monitoring, sustained audio detection, and calendar awareness to detect meetings automatically
 
 ### Notes
@@ -844,7 +845,7 @@ A: No. As of v1.6.0, OpenWhispr uses NSEvent monitors instead of CGEvent taps, e
 
 ## Project Status
 
-OpenWhispr is actively maintained and ready for production use. Current version: 1.6.0
+OpenWhispr is actively maintained and ready for production use. Current version: 1.6.1
 
 - ✅ Core dictation with local and cloud processing
 - ✅ Cross-platform support (macOS, Windows, Linux)
