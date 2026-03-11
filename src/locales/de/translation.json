@@ -199,6 +199,10 @@
       "weeklyTitle": "Wochenlimit erreicht",
       "weeklyDescription": "Ihr Limit setzt sich rollierend zurück. Upgraden Sie auf Pro oder nutzen Sie Ihren eigenen API-Schlüssel für unbegrenzte Nutzung."
     },
+    "accessibilityMissing": {
+      "title": "Bedienungshilfen-Berechtigungen benötigt",
+      "description": "Wir haben festgestellt, dass OpenWhispr Bedienungshilfen-Berechtigungen benötigt, um korrekt zu funktionieren. Bitte aktivieren Sie diese unten."
+    },
     "billing": {
       "pastDueTitle": "Ihre Zahlung konnte nicht verarbeitet werden",
       "pastDueDescription": "Keine Sorge – Sie sind vorerst im kostenlosen Tarif. Aktualisieren Sie Ihre Zahlungsdaten in den Einstellungen, um wieder Pro zu erhalten.",
@@ -1667,7 +1671,11 @@
         "description": "Die ausgewählte Tastenkombination konnte nicht registriert werden. Bitte wähle eine andere in den Einstellungen."
       },
       "addedToDict": "{{words}} zu deinem Wörterbuch hinzugefügt",
-      "undo": "Rückgängig"
+      "undo": "Rückgängig",
+      "accessibilityMissing": {
+        "title": "Bedienungshilfen-Berechtigungen erforderlich",
+        "description": "OpenWhispr benötigt Bedienungshilfen-Berechtigungen, um Ihren Hotkey zu erkennen und Text einzufügen. Bitte aktivieren Sie diese in der Systemsteuerung."
+      }
     },
     "mic": {
       "hotkeyToSpeak": "{{hotkey}} drücken zum Sprechen",

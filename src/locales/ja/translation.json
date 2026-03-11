@@ -199,6 +199,10 @@
       "weeklyTitle": "週間の利用上限に達しました",
       "weeklyDescription": "利用上限はローリング方式でリセットされます。Pro にアップグレードするか、自分の API キーを使用して無制限にご利用ください。"
     },
+    "accessibilityMissing": {
+      "title": "アクセシビリティの許可が必要です",
+      "description": "OpenWhispr が正しく動作するにはアクセシビリティの許可が必要です。以下で有効にしてください。"
+    },
     "billing": {
       "pastDueTitle": "お支払いを処理できませんでした",
       "pastDueDescription": "ご安心ください。現在は無料プランをご利用中です。設定からお支払い方法を更新して Pro に戻しましょう。",
@@ -1667,7 +1671,11 @@
         "description": "選択したホットキーを登録できませんでした。設定から別のホットキーを選択してください。"
       },
       "addedToDict": "{{words}} を辞書に追加しました",
-      "undo": "元に戻す"
+      "undo": "元に戻す",
+      "accessibilityMissing": {
+        "title": "アクセシビリティの許可が必要です",
+        "description": "OpenWhispr がホットキーの検出とテキストの貼り付けを行うには、アクセシビリティの許可が必要です。コントロールパネルで有効にしてください。"
+      }
     },
     "mic": {
       "hotkeyToSpeak": "{{hotkey}} を押して話す",

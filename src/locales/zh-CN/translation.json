@@ -199,6 +199,10 @@
       "weeklyTitle": "已达到周限额",
       "weeklyDescription": "你的额度按滚动方式重置。升级到 Pro 或使用自己的 API Key 可不受限制。"
     },
+    "accessibilityMissing": {
+      "title": "需要辅助功能权限",
+      "description": "我们检测到 OpenWhispr 需要辅助功能权限才能正常工作。请在下方启用。"
+    },
     "billing": {
       "pastDueTitle": "我们无法处理你的付款",
       "pastDueDescription": "别担心——你目前使用的是免费版。在设置中更新支付方式即可恢复 Pro 版。",
@@ -1667,7 +1671,11 @@
         "description": "无法注册所选快捷键。请在设置中选择其他快捷键。"
       },
       "addedToDict": "已将 {{words}} 添加到你的词典",
-      "undo": "撤消"
+      "undo": "撤消",
+      "accessibilityMissing": {
+        "title": "需要辅助功能权限",
+        "description": "OpenWhispr 需要辅助功能权限来检测快捷键和粘贴文本。请在控制面板中启用。"
+      }
     },
     "mic": {
       "hotkeyToSpeak": "按 {{hotkey}} 开始说话",

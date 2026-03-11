@@ -199,6 +199,10 @@
       "weeklyTitle": "Límite semanal alcanzado",
       "weeklyDescription": "Tu límite se restablece de forma continua. Mejora a Pro o usa tu propia clave API para uso ilimitado."
     },
+    "accessibilityMissing": {
+      "title": "Se necesitan permisos de accesibilidad",
+      "description": "Hemos detectado que OpenWhispr necesita permisos de accesibilidad para funcionar correctamente. Actívalos a continuación."
+    },
     "billing": {
       "pastDueTitle": "No pudimos procesar tu pago",
       "pastDueDescription": "No te preocupes: estás en el plan gratuito por ahora. Actualiza tu pago en Ajustes para volver a Pro.",
@@ -1671,7 +1675,11 @@
         "description": "No se pudo registrar el atajo seleccionado. Elige otro en la configuración."
       },
       "addedToDict": "{{words}} añadido a tu diccionario",
-      "undo": "Deshacer"
+      "undo": "Deshacer",
+      "accessibilityMissing": {
+        "title": "Se requieren permisos de accesibilidad",
+        "description": "OpenWhispr necesita permisos de accesibilidad para detectar tu atajo y pegar texto. Actívalos en el Panel de Control."
+      }
     },
     "mic": {
       "hotkeyToSpeak": "Pulsa {{hotkey}} para hablar",

@@ -202,6 +202,10 @@
       "weeklyTitle": "Weekly limit reached",
       "weeklyDescription": "Your limit resets on a rolling basis. Upgrade to Pro or use your own API key for unlimited use."
     },
+    "accessibilityMissing": {
+      "title": "Accessibility permissions needed",
+      "description": "We've detected that OpenWhispr needs accessibility permissions to work properly. Please enable them below."
+    },
     "billing": {
       "pastDueTitle": "We couldn't process your payment",
       "pastDueDescription": "Don't worry - you're on the free plan for now. Update your payment in Settings to get back to Pro.",
@@ -1743,7 +1747,11 @@
         "description": "The selected hotkey could not be registered. Please choose a different one in settings."
       },
       "addedToDict": "Added {{words}} to your dictionary",
-      "undo": "Undo"
+      "undo": "Undo",
+      "accessibilityMissing": {
+        "title": "Accessibility permissions required",
+        "description": "OpenWhispr needs accessibility permissions to detect your hotkey and paste text. Please enable them in the Control Panel."
+      }
     },
     "mic": {
       "hotkeyToSpeak": "Press {{hotkey}} to speak",

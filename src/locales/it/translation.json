@@ -199,6 +199,10 @@
       "weeklyTitle": "Limite settimanale raggiunto",
       "weeklyDescription": "Il limite si rinnova in modo progressivo. Passa a Pro o usa la tua chiave API per un uso illimitato."
     },
+    "accessibilityMissing": {
+      "title": "Autorizzazioni di accessibilità necessarie",
+      "description": "Abbiamo rilevato che OpenWhispr ha bisogno delle autorizzazioni di accessibilità per funzionare correttamente. Abilitale qui sotto."
+    },
     "billing": {
       "pastDueTitle": "Non siamo riusciti a elaborare il pagamento",
       "pastDueDescription": "Nessun problema: sei nel piano gratuito per ora. Aggiorna il pagamento nelle Impostazioni per tornare a Pro.",
@@ -1671,7 +1675,11 @@
         "description": "Non è stato possibile registrare la scorciatoia selezionata. Scegline un’altra nelle impostazioni."
       },
       "addedToDict": "{{words}} aggiunto al tuo dizionario",
-      "undo": "Annulla"
+      "undo": "Annulla",
+      "accessibilityMissing": {
+        "title": "Autorizzazioni di accessibilità richieste",
+        "description": "OpenWhispr necessita delle autorizzazioni di accessibilità per rilevare il tasto di scelta rapida e incollare il testo. Abilitale nel Pannello di controllo."
+      }
     },
     "mic": {
       "hotkeyToSpeak": "Premi {{hotkey}} per parlare",
