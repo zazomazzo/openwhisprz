@@ -67,6 +67,9 @@ interface NoteEditorProps {
   meetingTranscript?: string;
   onStopMeetingRecording?: () => void;
   onGenerateNotes?: () => void;
+  recordingMode?: "mic-only" | "mic-system";
+  onRecordingModeChange?: (mode: "mic-only" | "mic-system") => void;
+  liveTranscript?: string;
 }
 
 interface DictationRange {
@@ -163,6 +166,9 @@ export default function NoteEditor({
   meetingTranscript,
   onStopMeetingRecording,
   onGenerateNotes,
+  recordingMode,
+  onRecordingModeChange,
+  liveTranscript,
 }: NoteEditorProps) {
   const { t } = useTranslation();
   const [viewMode, setViewMode] = useState<MeetingViewMode>("raw");
@@ -365,7 +371,7 @@ export default function NoteEditor({
   const segmentContainerRef = useRef<HTMLDivElement>(null);
   const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({ opacity: 0 });
 
-  const effectiveTranscript = meetingTranscript || note.transcript || "";
+  const effectiveTranscript = liveTranscript || meetingTranscript || note.transcript || "";
   const hasMeetingTranscript = !isMeetingRecording && !!effectiveTranscript;
 
   const updateSegmentIndicator = useCallback(() => {
@@ -457,15 +463,20 @@ export default function NoteEditor({
 
   useEffect(() => {
     if (isRecording && !prevRecordingRef.current) {
-      const selStart = cursorPosRef.current;
-      const selEnd = selectionEndRef.current;
-      dictationRef.current = {
-        start: selStart,
-        partialStart: selStart,
-        end: selEnd,
-        committedChars: 0,
-      };
-      if (viewMode === "enhanced") setViewMode("raw");
+      if (recordingMode === "mic-system") {
+        // System audio mode: show transcript tab for live transcription
+        setViewMode("transcript");
+      } else {
+        const selStart = cursorPosRef.current;
+        const selEnd = selectionEndRef.current;
+        dictationRef.current = {
+          start: selStart,
+          partialStart: selStart,
+          end: selEnd,
+          committedChars: 0,
+        };
+        if (viewMode === "enhanced") setViewMode("raw");
+      }
     }
     if (!isRecording && prevRecordingRef.current) {
       // Only clear if no progressive text was inserted (non-streaming case).
@@ -822,6 +833,8 @@ export default function NoteEditor({
           isProcessing={isProcessing}
           onStart={handleStartRecording}
           onStop={isMeetingRecording ? onStopMeetingRecording! : onStopRecording}
+          recordingMode={recordingMode}
+          onRecordingModeChange={onRecordingModeChange}
           actionPicker={
             isMeetingRecording
               ? undefined

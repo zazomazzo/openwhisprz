@@ -1488,7 +1488,11 @@
       "live": "En direct",
       "transcript": "Transcription",
       "notes": "Notes",
-      "generateNotes": "Générer des notes"
+      "generateNotes": "Générer des notes",
+      "micOnly": "Microphone uniquement",
+      "micSystem": "Micro + audio système",
+      "systemAudioPermissionRequired": "L'autorisation d'enregistrement d'écran est requise pour l'audio système",
+      "systemAudioFallback": "Utilisation du microphone uniquement"
     },
     "upload": {
       "title": "Téléverser un fichier audio",

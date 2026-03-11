@@ -1447,7 +1447,11 @@
       "live": "实时",
       "transcript": "转录",
       "notes": "笔记",
-      "generateNotes": "生成笔记"
+      "generateNotes": "生成笔记",
+      "micOnly": "仅麦克风",
+      "micSystem": "麦克风 + 系统音频",
+      "systemAudioPermissionRequired": "系统音频需要屏幕录制权限",
+      "systemAudioFallback": "仅使用麦克风"
     },
     "upload": {
       "title": "上传音频",

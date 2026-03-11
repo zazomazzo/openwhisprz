@@ -2,6 +2,7 @@ import ReasoningService from "../services/ReasoningService";
 import { API_ENDPOINTS, buildApiUrl, normalizeBaseUrl } from "../config/constants";
 import logger from "../utils/logger";
 import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
+import { getSystemAudioStream, stopSystemAudioStream } from "../utils/systemAudio";
 import { isSecureEndpoint } from "../utils/urlUtils";
 import { withSessionRefresh } from "../lib/neonAuth";
 import { getBaseLanguageCode, validateLanguageForModel } from "../utils/languageSupport";
@@ -111,6 +112,13 @@ class AudioManager {
     this.sttConfig = null;
     this.lastAudioBlob = null;
     this.lastAudioMetadata = null;
+
+    // System audio capture
+    this.systemAudioEnabled = false;
+    this.systemAudioStream = null;
+    this._mixingContext = null;
+    this._mixingDestination = null;
+    this._systemAudioSource = null;
   }
 
   getWorkletBlobUrl() {
@@ -186,6 +194,30 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
   setSttConfig(config) {
     this.sttConfig = config;
+  }
+
+  setSystemAudioEnabled(enabled) {
+    this.systemAudioEnabled = enabled;
+  }
+
+  cleanupSystemAudio() {
+    stopSystemAudioStream(this.systemAudioStream);
+    this.systemAudioStream = null;
+
+    if (this._systemAudioSource) {
+      try {
+        this._systemAudioSource.disconnect();
+      } catch {}
+      this._systemAudioSource = null;
+    }
+
+    if (this._mixingContext) {
+      try {
+        this._mixingContext.close();
+      } catch {}
+      this._mixingContext = null;
+    }
+    this._mixingDestination = null;
   }
 
   getStreamingProvider() {
@@ -275,9 +307,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       }
 
       const constraints = await this.getAudioConstraints();
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const micStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-      const audioTrack = stream.getAudioTracks()[0];
+      const audioTrack = micStream.getAudioTracks()[0];
       if (audioTrack) {
         const settings = audioTrack.getSettings();
         logger.info(
@@ -292,12 +324,31 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         );
       }
 
+      // Mix in system audio if enabled
+      let recordingStream = micStream;
+      if (this.systemAudioEnabled) {
+        const sysStream = await getSystemAudioStream();
+        if (sysStream) {
+          this.systemAudioStream = sysStream;
+          this._mixingContext = new AudioContext();
+          this._mixingDestination = this._mixingContext.createMediaStreamDestination();
+          const micSource = this._mixingContext.createMediaStreamSource(micStream);
+          this._systemAudioSource = this._mixingContext.createMediaStreamSource(sysStream);
+          micSource.connect(this._mixingDestination);
+          this._systemAudioSource.connect(this._mixingDestination);
+          recordingStream = this._mixingDestination.stream;
+          logger.info("System audio mixed into batch recording", {}, "audio");
+        } else {
+          logger.warn("System audio unavailable, recording mic only", {}, "audio");
+        }
+      }
+
       // Silence detection: observe audio energy via AnalyserNode
       try {
         this._silenceCtx = new AudioContext();
         this._silenceAnalyser = this._silenceCtx.createAnalyser();
         this._silenceAnalyser.fftSize = 2048;
-        const sourceNode = this._silenceCtx.createMediaStreamSource(stream);
+        const sourceNode = this._silenceCtx.createMediaStreamSource(recordingStream);
         sourceNode.connect(this._silenceAnalyser);
         this._peakRms = 0;
         const dataArray = new Uint8Array(this._silenceAnalyser.fftSize);
@@ -316,7 +367,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this._peakRms = 1; // assume speech if detection fails
       }
 
-      this.mediaRecorder = new MediaRecorder(stream);
+      this.mediaRecorder = new MediaRecorder(recordingStream);
       this.audioChunks = [];
       this.recordingStartTime = Date.now();
       this.recordingMimeType = this.mediaRecorder.mimeType || "audio/webm";
@@ -358,7 +409,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this.recordingStartTime = null;
         await this.processAudio(audioBlob, { durationSeconds });
 
-        stream.getTracks().forEach((track) => track.stop());
+        micStream.getTracks().forEach((track) => track.stop());
+        this.cleanupSystemAudio();
       };
 
       this.mediaRecorder.start();
@@ -414,6 +466,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       if (this.mediaRecorder.stream) {
         this.mediaRecorder.stream.getTracks().forEach((track) => track.stop());
       }
+      this.cleanupSystemAudio();
 
       return true;
     }
@@ -2142,6 +2195,21 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       this.isStreaming = true;
       this.streamingSource.connect(this.streamingProcessor);
+
+      // Mix in system audio if enabled — connecting a second source to the same
+      // AudioWorkletNode sums the signals automatically via Web Audio API.
+      if (this.systemAudioEnabled) {
+        const sysStream = await getSystemAudioStream();
+        if (sysStream) {
+          this.systemAudioStream = sysStream;
+          this._systemAudioSource = audioContext.createMediaStreamSource(sysStream);
+          this._systemAudioSource.connect(this.streamingProcessor);
+          logger.info("System audio mixed into streaming recording", {}, "audio");
+        } else {
+          logger.warn("System audio unavailable, streaming mic only", {}, "audio");
+        }
+      }
+
       const tPipeline = performance.now();
 
       // 3. Register IPC event listeners BEFORE connecting, so no transcript
@@ -2615,6 +2683,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       this.streamingStream.getTracks().forEach((track) => track.stop());
       this.streamingStream = null;
     }
+
+    this.cleanupSystemAudio();
 
     this.isStreaming = false;
   }

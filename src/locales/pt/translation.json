@@ -1451,7 +1451,11 @@
       "live": "Ao vivo",
       "transcript": "Transcrição",
       "notes": "Notas",
-      "generateNotes": "Gerar notas"
+      "generateNotes": "Gerar notas",
+      "micOnly": "Apenas microfone",
+      "micSystem": "Microfone + áudio do sistema",
+      "systemAudioPermissionRequired": "Permissão de gravação de tela necessária para áudio do sistema",
+      "systemAudioFallback": "Usando apenas o microfone"
     },
     "upload": {
       "title": "Enviar áudio",

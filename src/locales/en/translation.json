@@ -1560,7 +1560,11 @@
       "live": "Live",
       "transcript": "Transcript",
       "notes": "Notes",
-      "generateNotes": "Generate notes"
+      "generateNotes": "Generate notes",
+      "micOnly": "Microphone only",
+      "micSystem": "Mic + System Audio",
+      "systemAudioPermissionRequired": "Screen recording permission required for system audio",
+      "systemAudioFallback": "Falling back to microphone only"
     },
     "upload": {
       "title": "Upload Audio",

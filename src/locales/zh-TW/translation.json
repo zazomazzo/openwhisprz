@@ -1447,7 +1447,11 @@
       "live": "即時",
       "transcript": "轉錄",
       "notes": "筆記",
-      "generateNotes": "生成筆記"
+      "generateNotes": "生成筆記",
+      "micOnly": "僅麥克風",
+      "micSystem": "麥克風 + 系統音訊",
+      "systemAudioPermissionRequired": "系統音訊需要螢幕錄製權限",
+      "systemAudioFallback": "僅使用麥克風"
     },
     "upload": {
       "title": "上傳音訊",

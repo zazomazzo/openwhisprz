@@ -33,8 +33,11 @@ import {
   setActiveFolderId,
 } from "../../stores/noteStore";
 import { useMeetingTranscription } from "../../hooks/useMeetingTranscription";
+import { useScreenRecordingPermission } from "../../hooks/useScreenRecordingPermission";
 import { useNotesOnboarding } from "../../hooks/useNotesOnboarding";
 import NotesOnboarding from "./NotesOnboarding";
+
+type NoteRecordingMode = "mic-only" | "mic-system";
 
 const FOLDER_INPUT_CLASS =
   "w-full h-6 bg-foreground/5 dark:bg-white/5 rounded px-2 text-xs text-foreground outline-none border border-primary/30 focus:border-primary/50";
@@ -78,6 +81,36 @@ export default function PersonalNotesView({
   const effectiveModelId = useSettingsStore((s) => s.reasoningModel);
   const { isComplete: isOnboardingComplete, complete: completeOnboarding } = useNotesOnboarding();
 
+  const [noteRecordingMode, setNoteRecordingMode] = useState<NoteRecordingMode>(() => {
+    const saved = localStorage.getItem("noteRecordingMode");
+    return saved === "mic-only" ? "mic-only" : "mic-system";
+  });
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const liveTranscriptRef = useRef("");
+  const { granted: screenRecordingGranted, request: requestScreenRecording } =
+    useScreenRecordingPermission();
+
+  const handleRecordingModeChange = useCallback(
+    async (mode: NoteRecordingMode) => {
+      if (mode === "mic-system" && !screenRecordingGranted) {
+        const granted = await requestScreenRecording();
+        if (!granted) {
+          toast({
+            title: t("notes.editor.systemAudioPermissionRequired"),
+            description: t("notes.editor.systemAudioFallback"),
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+      setNoteRecordingMode(mode);
+      localStorage.setItem("noteRecordingMode", mode);
+    },
+    [screenRecordingGranted, requestScreenRecording, toast, t]
+  );
+
+  const systemAudioEnabled = noteRecordingMode === "mic-system";
+
   const {
     isRecording: isMeetingRecording,
     transcript: meetingTranscript,
@@ -120,9 +153,44 @@ export default function PersonalNotesView({
     startRecording,
     stopRecording,
   } = useNoteRecording({
-    onTranscriptionComplete: useCallback((text: string) => {
-      setFinalTranscript(text);
-    }, []),
+    systemAudioEnabled,
+    onTranscriptionComplete: useCallback(
+      (text: string) => {
+        if (systemAudioEnabled) {
+          // System audio mode: save to transcript field (separate from content).
+          // `text` is the complete final transcript from the provider.
+          const noteId = activeNoteRef.current;
+          if (noteId) {
+            window.electronAPI.updateNote(noteId, { transcript: text });
+            setLiveTranscript(text);
+            liveTranscriptRef.current = text;
+          }
+        } else {
+          setFinalTranscript(text);
+        }
+      },
+      [systemAudioEnabled]
+    ),
+    onPartialTranscript: useCallback(
+      (text: string) => {
+        if (systemAudioEnabled) {
+          // Show partial text in live transcript view
+          setLiveTranscript(
+            liveTranscriptRef.current + (liveTranscriptRef.current ? " " : "") + text
+          );
+        }
+      },
+      [systemAudioEnabled]
+    ),
+    onStreamingCommit: useCallback(
+      (text: string) => {
+        if (systemAudioEnabled) {
+          liveTranscriptRef.current += text;
+          setLiveTranscript(liveTranscriptRef.current);
+        }
+      },
+      [systemAudioEnabled]
+    ),
     onError: useCallback(
       (error: { title: string; description: string }) => {
         toast({ title: error.title, description: error.description, variant: "destructive" });
@@ -133,12 +201,24 @@ export default function PersonalNotesView({
 
   const handleFinalTranscriptConsumed = useCallback(() => setFinalTranscript(null), []);
 
+  // Reset live transcript when recording starts (system audio mode)
+  const prevIsRecordingRef = useRef(false);
+  useEffect(() => {
+    if (isRecording && !prevIsRecordingRef.current && systemAudioEnabled) {
+      setLiveTranscript("");
+      liveTranscriptRef.current = "";
+    }
+    prevIsRecordingRef.current = isRecording;
+  }, [isRecording, systemAudioEnabled]);
+
   useEffect(() => {
     if (activeNote && activeNote.id !== activeNoteRef.current) {
       activeNoteRef.current = activeNote.id;
       setLocalTitle(activeNote.title);
       setLocalContent(activeNote.content);
       setLocalEnhancedContent(activeNote.enhanced_content ?? null);
+      setLiveTranscript("");
+      liveTranscriptRef.current = "";
     }
     if (!activeNote) {
       activeNoteRef.current = null;
@@ -714,10 +794,10 @@ export default function PersonalNotesView({
               isSaving={isSaving}
               isRecording={isRecording}
               isProcessing={isProcessing}
-              partialTranscript={partialTranscript}
-              finalTranscript={finalTranscript}
+              partialTranscript={systemAudioEnabled ? "" : partialTranscript}
+              finalTranscript={systemAudioEnabled ? null : finalTranscript}
               onFinalTranscriptConsumed={handleFinalTranscriptConsumed}
-              streamingCommit={streamingCommit}
+              streamingCommit={systemAudioEnabled ? null : streamingCommit}
               onStreamingCommitConsumed={consumeStreamingCommit}
               onStartRecording={startRecording}
               onStopRecording={stopRecording}
@@ -735,6 +815,9 @@ export default function PersonalNotesView({
               meetingTranscript={meetingTranscript}
               onStopMeetingRecording={stopMeetingTranscription}
               onGenerateNotes={handleGenerateNotes}
+              recordingMode={noteRecordingMode}
+              onRecordingModeChange={handleRecordingModeChange}
+              liveTranscript={liveTranscript}
               actionProcessingState={actionProcessingState}
               actionName={actionName}
               actionPicker={
