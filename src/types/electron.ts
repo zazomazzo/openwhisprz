@@ -1168,6 +1168,7 @@ declare global {
       onMeetingDetectedStartRecording?: (callback: (data: any) => void) => () => void;
       onMeetingNotificationData?: (callback: (data: any) => void) => () => void;
       getMeetingNotificationData?: () => Promise<any>;
+      meetingNotificationReady?: () => Promise<void>;
       meetingNotificationRespond?: (
         detectionId: string,
         action: string

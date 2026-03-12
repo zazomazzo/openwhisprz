@@ -3889,6 +3889,10 @@ class IPCHandlers {
       return this.windowManager?._pendingNotificationData ?? null;
     });
 
+    ipcMain.handle("meeting-notification-ready", async () => {
+      this.windowManager?.showNotificationWindow();
+    });
+
     ipcMain.handle("get-desktop-sources", async (_event, types) => {
       try {
         const { desktopCapturer } = require("electron");

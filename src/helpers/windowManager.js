@@ -956,18 +956,18 @@ class WindowManager {
 
     this._pendingNotificationData = promptData;
 
-    const sendAndShow = () => {
+    this._notificationReadyFallback = setTimeout(() => {
+      this._notificationReadyFallback = null;
       if (this.notificationWindow && !this.notificationWindow.isDestroyed()) {
+        debugLogger.warn(
+          "Notification renderer did not signal ready, force-showing",
+          {},
+          "meeting"
+        );
         this.notificationWindow.webContents.send("meeting-notification-data", promptData);
         this.notificationWindow.showInactive();
       }
-    };
-
-    if (this.notificationWindow.webContents.isLoading()) {
-      this.notificationWindow.webContents.once("did-finish-load", sendAndShow);
-    } else {
-      sendAndShow();
-    }
+    }, 3000);
 
     this._notificationTimeout = setTimeout(() => {
       if (this.meetingDetectionEngine) {
@@ -985,8 +985,22 @@ class WindowManager {
     });
   }
 
+  showNotificationWindow() {
+    if (this._notificationReadyFallback) {
+      clearTimeout(this._notificationReadyFallback);
+      this._notificationReadyFallback = null;
+    }
+    if (this.notificationWindow && !this.notificationWindow.isDestroyed()) {
+      this.notificationWindow.showInactive();
+    }
+  }
+
   dismissMeetingNotification() {
     this._pendingNotificationData = null;
+    if (this._notificationReadyFallback) {
+      clearTimeout(this._notificationReadyFallback);
+      this._notificationReadyFallback = null;
+    }
     if (this._notificationTimeout) {
       clearTimeout(this._notificationTimeout);
       this._notificationTimeout = null;
