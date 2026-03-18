@@ -768,16 +768,45 @@ export default function PersonalNotesView({
               actionPicker={
                 <ActionPicker
                   onRunAction={(action) => {
-                    const transcript = meetingTranscript || activeNote?.transcript;
+                    const rawTranscript = meetingTranscript || activeNote?.transcript;
                     const hasNotes = !!localContent.trim();
-                    if (!hasNotes && !transcript) return;
+                    if (!hasNotes && !rawTranscript) return;
+
+                    let formattedTranscript = "";
+                    let isMeetingNote = false;
+                    if (rawTranscript) {
+                      try {
+                        const segments = JSON.parse(rawTranscript) as Array<{
+                          text: string;
+                          source: string;
+                        }>;
+                        if (Array.isArray(segments) && segments.length > 0 && segments[0].source) {
+                          isMeetingNote = true;
+                          formattedTranscript = segments
+                            .map((s) => `${s.source === "mic" ? "You" : "Them"}: ${s.text}`)
+                            .join("\n");
+                        }
+                      } catch {
+                        // Not JSON segments — use raw transcript as-is
+                      }
+                      if (!formattedTranscript) {
+                        formattedTranscript = rawTranscript;
+                      }
+                    }
+
                     const parts = [
                       hasNotes ? localContent : "",
-                      transcript ? `## Meeting Transcript\n${transcript}` : "",
+                      formattedTranscript
+                        ? `## Meeting Transcript\n${formattedTranscript}`
+                        : "",
                     ]
                       .filter(Boolean)
                       .join("\n\n");
-                    runAction(action, parts, { isCloudMode, modelId: effectiveModelId });
+                    runAction(action, parts, {
+                      isCloudMode,
+                      modelId: effectiveModelId,
+                      isMeetingNote,
+                    });
                   }}
                   onManageActions={() => setShowActionManager(true)}
                   disabled={

@@ -9,6 +9,22 @@ export type ActionProcessingState = "idle" | "processing" | "success";
 const BASE_SYSTEM_PROMPT =
   "You are a note enhancement assistant. The user will provide raw notes — possibly voice-transcribed, rough, or unstructured. Your job is to clean them up according to the instructions below while preserving all original meaning and information. Output clean markdown.\n\nInstructions: ";
 
+const MEETING_SYSTEM_PROMPT = `You are a professional meeting notes assistant. You will receive a dual-speaker transcript where "You:" marks the user's speech and "Them:" marks the other participant(s), along with any manual notes the user took.
+
+Your job is to produce clean, actionable meeting notes in markdown. Follow these rules:
+
+- Do NOT include a date, time, location, or attendee header — that metadata is handled separately.
+- Start with a concise 1–2 sentence summary of what the meeting was about.
+- Use clear section headings: ## Key Discussion Points, ## Decisions Made, ## Action Items, ## Follow-ups (omit any section that has no content).
+- Under Action Items, use checkboxes (\`- [ ]\`) and attribute each item to "You" or "Them" where clear.
+- Preserve important quotes or specific commitments verbatim when they carry meaning.
+- Remove filler, small talk, false starts, and repeated/redundant content.
+- Where speakers refer to the same topic across multiple turns, consolidate into a coherent point rather than listing every utterance.
+- If the user included manual notes alongside the transcript, integrate them — they represent the user's emphasis on what matters most.
+- Keep the tone professional and concise. Bias toward brevity.
+
+Instructions: `;
+
 interface UseActionProcessingOptions {
   onSuccess: (enhancedContent: string, prompt: string) => void;
   onError: (errorMessage: string) => void;
@@ -32,7 +48,7 @@ export function useActionProcessing({ onSuccess, onError }: UseActionProcessingO
     async (
       action: ActionItem,
       noteContent: string,
-      options: { isCloudMode: boolean; modelId: string }
+      options: { isCloudMode: boolean; modelId: string; isMeetingNote?: boolean }
     ) => {
       if (processingRef.current) return;
 
@@ -49,7 +65,8 @@ export function useActionProcessing({ onSuccess, onError }: UseActionProcessingO
       setState("processing");
 
       try {
-        const systemPrompt = BASE_SYSTEM_PROMPT + action.prompt;
+        const basePrompt = options.isMeetingNote ? MEETING_SYSTEM_PROMPT : BASE_SYSTEM_PROMPT;
+        const systemPrompt = basePrompt + action.prompt;
         const enhanced = await reasoningService.processText(noteContent, modelId, null, {
           systemPrompt,
           temperature: 0.3,

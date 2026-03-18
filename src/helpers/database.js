@@ -239,7 +239,7 @@ class DatabaseManager {
           .run(
             "Generate Notes",
             "Clean up, structure, and enhance your notes",
-            "You are given the user's notes and/or a meeting transcript. If a meeting transcript is present, combine all inputs into clean, well-structured meeting notes in markdown — include key discussion points, decisions made, action items, and follow-ups. If only personal notes are provided, clean up grammar, improve structure, and format for readability. Preserve the user's intent and meaning. Do not include filler, small talk, or redundant information.",
+            "Transform the provided content into clean, well-structured notes in markdown. Preserve the user's intent and all substantive information. Remove filler, small talk, false starts, and redundant content. For personal notes, improve grammar and structure for readability. For meeting transcripts, extract key discussion points, decisions, action items, and follow-ups.",
             "sparkles",
             "notes.actions.builtin.generateNotes"
           );
@@ -253,7 +253,7 @@ class DatabaseManager {
         .run(
           "Generate Notes",
           "Clean up, structure, and enhance your notes",
-          "You are given the user's notes and/or a meeting transcript. If a meeting transcript is present, combine all inputs into clean, well-structured meeting notes in markdown — include key discussion points, decisions made, action items, and follow-ups. If only personal notes are provided, clean up grammar, improve structure, and format for readability. Preserve the user's intent and meaning. Do not include filler, small talk, or redundant information.",
+          "Transform the provided content into clean, well-structured notes in markdown. Preserve the user's intent and all substantive information. Remove filler, small talk, false starts, and redundant content. For personal notes, improve grammar and structure for readability. For meeting transcripts, extract key discussion points, decisions, action items, and follow-ups.",
           "notes.actions.builtin.generateNotes",
           "notes.actions.builtin.generateNotes"
         );
