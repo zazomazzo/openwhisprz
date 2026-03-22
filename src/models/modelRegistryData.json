@@ -495,6 +495,19 @@
       "promptTemplate": "[INST] {system}\n\n{user} [/INST]",
       "models": [
         {
+          "id": "mistral-nemo-12b-instruct-q4_k_m",
+          "name": "Mistral Nemo 12B",
+          "size": "7.5GB",
+          "sizeBytes": 8028321792,
+          "description": "Mistral's 12B model, strong multilingual performance",
+          "fileName": "Mistral-Nemo-12B-Instruct.Q4_K_M.gguf",
+          "quantization": "q4_k_m",
+          "contextLength": 131072,
+          "hfRepo": "mradermacher/Mistral-Nemo-12B-Instruct-GGUF",
+          "recommended": true,
+          "descriptionKey": "models.descriptions.local.mistral_nemo_12b_instruct_q4_k_m"
+        },
+        {
           "id": "mistral-7b-instruct-v0.3-q4_k_m",
           "name": "Mistral 7B Instruct v0.3",
           "size": "4.4GB",
@@ -504,7 +517,6 @@
           "quantization": "q4_k_m",
           "contextLength": 32768,
           "hfRepo": "bartowski/Mistral-7B-Instruct-v0.3-GGUF",
-          "recommended": true,
           "descriptionKey": "models.descriptions.local.mistral_mistral_7b_instruct_v0_3_q4_k_m"
         },
         {
@@ -594,6 +606,19 @@
       "promptTemplate": "<bos><start_of_turn>user\n{system}\n\n{user}<end_of_turn>\n<start_of_turn>model\n",
       "models": [
         {
+          "id": "gemma-3-12b-it-q4_k_m",
+          "name": "Gemma 3 12B",
+          "size": "7.3GB",
+          "sizeBytes": 7847624704,
+          "description": "Google's mid-range model, strong reasoning",
+          "fileName": "google_gemma-3-12b-it-Q4_K_M.gguf",
+          "quantization": "q4_k_m",
+          "contextLength": 131072,
+          "hfRepo": "bartowski/google_gemma-3-12b-it-GGUF",
+          "recommended": true,
+          "descriptionKey": "models.descriptions.local.gemma_gemma_3_12b_it_q4_k_m"
+        },
+        {
           "id": "gemma-3-4b-it-q4_k_m",
           "name": "Gemma 3 4B",
           "size": "2.49GB",
@@ -603,7 +628,6 @@
           "quantization": "q4_k_m",
           "contextLength": 131072,
           "hfRepo": "bartowski/google_gemma-3-4b-it-GGUF",
-          "recommended": true,
           "descriptionKey": "models.descriptions.local.gemma_gemma_3_4b_it_q4_k_m"
         },
         {

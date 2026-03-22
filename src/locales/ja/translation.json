@@ -1412,11 +1412,13 @@
         "qwen_qwen2_5_7b_instruct_q5_k_m": "高品質推論の大型モデル（Q5_K_M）",
         "mistral_mistral_7b_instruct_v0_3_q4_k_m": "高速で効率的な指示モデル",
         "mistral_mistral_7b_instruct_v0_3_q5_k_m": "より高品質な指示モデル",
+        "mistral_nemo_12b_instruct_q4_k_m": "Mistral の 12B モデル、優れた多言語性能",
         "llama_llama_3_2_1b_instruct_q4_k_m": "エッジデバイス向け超小型モデル",
         "llama_llama_3_2_3b_instruct_q4_k_m": "小型ながら高性能な多言語モデル",
         "llama_llama_3_1_8b_instruct_q4_k_m": "優れた性能を持つ強力なモデル",
         "openai_oss_gpt_oss_20b_mxfp4": "一般消費者向けハードウェア用 OpenAI オープンウェイトモデル",
         "gemma_gemma_3_4b_it_q4_k_m": "Google のオープンウェイトモデル、速度と品質の優れたバランス",
+        "gemma_gemma_3_12b_it_q4_k_m": "Google の中型モデル、強力な推論",
         "gemma_gemma_3_1b_it_q4_k_m": "超高速 Google モデル、短い口述のクリーンアップに最適"
       }
     }
