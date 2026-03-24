@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Mic, SendHorizontal, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "../lib/utils";
@@ -112,7 +112,14 @@ export function ChatInput({
   const isIdle = agentState === "idle";
   const isListening = agentState === "listening";
   const isTranscribing = agentState === "transcribing";
-  const isBusy = agentState === "thinking" || agentState === "streaming" || agentState === "tool-executing";
+  const isBusy =
+    agentState === "thinking" || agentState === "streaming" || agentState === "tool-executing";
+
+  useEffect(() => {
+    if (isIdle) {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [isIdle]);
 
   return (
     <div className="shrink-0 px-3 pb-3 pt-1">
@@ -124,85 +131,85 @@ export function ChatInput({
           isIdle && "focus-within:border-primary/30"
         )}
       >
-      {isListening && (
-        <>
-          <RecordingIndicator />
-          <span className="text-[12px] text-foreground/80 truncate flex-1">
-            {partialTranscript || t("agentMode.input.listening")}
-          </span>
-        </>
-      )}
+        {isListening && (
+          <>
+            <RecordingIndicator />
+            <span className="text-[12px] text-foreground/80 truncate flex-1">
+              {partialTranscript || t("agentMode.input.listening")}
+            </span>
+          </>
+        )}
 
-      {isTranscribing && (
-        <>
-          <ProcessingIndicator />
-          <span className="text-[12px] text-muted-foreground select-none">
-            {t("agentMode.input.transcribing")}
-          </span>
-        </>
-      )}
+        {isTranscribing && (
+          <>
+            <ProcessingIndicator />
+            <span className="text-[12px] text-muted-foreground select-none">
+              {t("agentMode.input.transcribing")}
+            </span>
+          </>
+        )}
 
-      {(isIdle || isBusy) && (
-        <div className="flex items-center gap-2 w-full">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isBusy}
-            autoFocus={autoFocus}
-            placeholder={t("agentMode.input.typeMessage")}
-            className={cn(
-              "input-inline flex-1 outline-none bg-transparent",
-              "text-[13px] text-foreground placeholder:text-muted-foreground/40",
-              "min-w-0 p-0",
-              isBusy && "text-muted-foreground/30 cursor-not-allowed"
-            )}
-          />
-          {isBusy && onCancel ? (
-            <button
-              onClick={onCancel}
+        {(isIdle || isBusy) && (
+          <div className="flex items-center gap-2 w-full">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isBusy}
+              autoFocus={autoFocus}
+              placeholder={t("agentMode.input.typeMessage")}
               className={cn(
-                "p-1 rounded-sm shrink-0",
-                "text-muted-foreground/60 hover:text-foreground hover:bg-foreground/8",
-                "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30",
-                "transition-colors duration-100"
+                "input-inline flex-1 outline-none bg-transparent",
+                "text-[13px] text-foreground placeholder:text-muted-foreground/40",
+                "min-w-0 p-0",
+                isBusy && "text-muted-foreground/30 cursor-not-allowed"
               )}
-            >
-              <Square size={12} className="fill-current" />
-            </button>
-          ) : isIdle ? (
-            <div className="flex items-center gap-1 shrink-0">
-              {showHotkey && (
-                <div className="flex items-center gap-2 mr-1">
-                  <div
-                    className="text-muted-foreground/50"
-                    style={{ animation: "agent-mic-pulse 2.5s ease-in-out infinite" }}
-                  >
-                    <Mic size={14} />
-                  </div>
-                  <HotkeyKeys hotkey={agentKey} />
-                </div>
-              )}
+            />
+            {isBusy && onCancel ? (
               <button
-                onClick={handleSubmit}
-                disabled={!inputText.trim()}
+                onClick={onCancel}
                 className={cn(
-                  "p-1 rounded-sm",
+                  "p-1 rounded-sm shrink-0",
+                  "text-muted-foreground/60 hover:text-foreground hover:bg-foreground/8",
                   "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30",
-                  "transition-colors duration-100",
-                  inputText.trim()
-                    ? "text-primary hover:text-primary/80"
-                    : "text-muted-foreground/25 cursor-default"
+                  "transition-colors duration-100"
                 )}
               >
-                <SendHorizontal size={14} />
+                <Square size={12} className="fill-current" />
               </button>
-            </div>
-          ) : null}
-        </div>
-      )}
+            ) : isIdle ? (
+              <div className="flex items-center gap-1 shrink-0">
+                {showHotkey && (
+                  <div className="flex items-center gap-2 mr-1">
+                    <div
+                      className="text-muted-foreground/50"
+                      style={{ animation: "agent-mic-pulse 2.5s ease-in-out infinite" }}
+                    >
+                      <Mic size={14} />
+                    </div>
+                    <HotkeyKeys hotkey={agentKey} />
+                  </div>
+                )}
+                <button
+                  onClick={handleSubmit}
+                  disabled={!inputText.trim()}
+                  className={cn(
+                    "p-1 rounded-sm",
+                    "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30",
+                    "transition-colors duration-100",
+                    inputText.trim()
+                      ? "text-primary hover:text-primary/80"
+                      : "text-muted-foreground/25 cursor-default"
+                  )}
+                >
+                  <SendHorizontal size={14} />
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
       </div>
     </div>
   );

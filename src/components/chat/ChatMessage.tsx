@@ -218,7 +218,7 @@ export function ChatMessage({ role, content, isStreaming, toolCalls }: ChatMessa
     >
       <div
         className={cn(
-          "relative max-w-[85%] px-3 py-2 rounded-lg rounded-bl-sm",
+          "max-w-[85%] px-3 py-2 rounded-lg rounded-bl-sm",
           "bg-surface-1 border border-border/30 text-foreground",
           "text-[13px] leading-relaxed"
         )}
@@ -264,17 +264,19 @@ export function ChatMessage({ role, content, isStreaming, toolCalls }: ChatMessa
         )}
 
         {hasContent && !isStreaming && (
-          <button
-            onClick={handleCopy}
-            className={cn(
-              "absolute bottom-1.5 right-1.5 p-1 rounded-sm",
-              "text-muted-foreground/40 hover:text-foreground hover:bg-foreground/8",
-              "opacity-0 group-hover/msg:opacity-100 transition-all duration-150",
-              "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30"
-            )}
-          >
-            {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-          </button>
+          <div className="flex justify-start mt-1.5 -mb-0.5">
+            <button
+              onClick={handleCopy}
+              className={cn(
+                "p-1 rounded-sm",
+                "text-muted-foreground/40 hover:text-foreground hover:bg-foreground/8",
+                "opacity-0 group-hover/msg:opacity-100 transition-all duration-150",
+                "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30"
+              )}
+            >
+              {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+            </button>
+          </div>
         )}
       </div>
     </div>
