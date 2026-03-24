@@ -1757,7 +1757,8 @@
     "untitled": "Без названия",
     "searchChats": "Поиск чатов",
     "searchTitle": "Поиск бесед",
-    "searchDescription": "Поиск по всем беседам"
+    "searchDescription": "Поиск по всем беседам",
+    "newChatEmpty": "Начните разговор"
   },
   "usage": {
     "approachingLimit": "Приближается недельный лимит",

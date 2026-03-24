@@ -1757,7 +1757,8 @@
     "untitled": "无标题",
     "searchChats": "搜索聊天",
     "searchTitle": "搜索对话",
-    "searchDescription": "搜索所有对话"
+    "searchDescription": "搜索所有对话",
+    "newChatEmpty": "开始对话"
   },
   "usage": {
     "approachingLimit": "即将达到周限额",

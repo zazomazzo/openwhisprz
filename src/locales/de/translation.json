@@ -1757,7 +1757,8 @@
     "untitled": "Ohne Titel",
     "searchChats": "Chats suchen",
     "searchTitle": "Unterhaltungen suchen",
-    "searchDescription": "In allen Unterhaltungen suchen"
+    "searchDescription": "In allen Unterhaltungen suchen",
+    "newChatEmpty": "Starten Sie ein Gespräch"
   },
   "usage": {
     "approachingLimit": "Wochenlimit fast erreicht",

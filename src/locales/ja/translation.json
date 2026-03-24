@@ -1757,7 +1757,8 @@
     "untitled": "無題",
     "searchChats": "チャットを検索",
     "searchTitle": "会話を検索",
-    "searchDescription": "すべての会話を検索"
+    "searchDescription": "すべての会話を検索",
+    "newChatEmpty": "会話を始めましょう"
   },
   "usage": {
     "approachingLimit": "週間制限に近づいています",

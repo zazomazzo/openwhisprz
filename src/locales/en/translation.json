@@ -1545,7 +1545,8 @@
     "untitled": "Untitled",
     "searchChats": "Search chats",
     "searchTitle": "Search conversations",
-    "searchDescription": "Search across all your conversations"
+    "searchDescription": "Search across all your conversations",
+    "newChatEmpty": "Start a conversation"
   },
   "referral": {
     "title": "Refer and earn rewards",

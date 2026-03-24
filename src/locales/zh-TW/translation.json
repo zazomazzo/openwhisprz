@@ -1757,7 +1757,8 @@
     "untitled": "無標題",
     "searchChats": "搜尋聊天",
     "searchTitle": "搜尋對話",
-    "searchDescription": "搜尋所有對話"
+    "searchDescription": "搜尋所有對話",
+    "newChatEmpty": "開始對話"
   },
   "usage": {
     "approachingLimit": "即將達到每週上限",

@@ -14,6 +14,52 @@ const CommandSearch = lazy(() => import("../CommandSearch"));
 
 const platform = getCachedPlatform();
 
+function NewChatEmptyState() {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col items-center justify-center h-full -mt-6 select-none">
+      <svg
+        className="text-foreground dark:text-white mb-4"
+        width="56"
+        height="48"
+        viewBox="0 0 56 48"
+        fill="none"
+      >
+        <rect
+          x="4"
+          y="6"
+          width="36"
+          height="24"
+          rx="4"
+          fill="currentColor"
+          fillOpacity={0.04}
+          stroke="currentColor"
+          strokeOpacity={0.08}
+        />
+        <rect x="10" y="13" width="18" height="2" rx="1" fill="currentColor" fillOpacity={0.06} />
+        <rect x="10" y="18" width="24" height="2" rx="1" fill="currentColor" fillOpacity={0.04} />
+        <rect x="10" y="23" width="14" height="2" rx="1" fill="currentColor" fillOpacity={0.03} />
+        <rect
+          x="16"
+          y="18"
+          width="36"
+          height="24"
+          rx="4"
+          fill="currentColor"
+          fillOpacity={0.03}
+          stroke="currentColor"
+          strokeOpacity={0.06}
+        />
+        <rect x="22" y="25" width="18" height="2" rx="1" fill="currentColor" fillOpacity={0.05} />
+        <rect x="22" y="30" width="24" height="2" rx="1" fill="currentColor" fillOpacity={0.03} />
+      </svg>
+      <p className="text-xs text-foreground/50 dark:text-foreground/25 text-center max-w-48">
+        {t("chat.newChatEmpty")}
+      </p>
+    </div>
+  );
+}
+
 export default function ChatView() {
   const { t } = useTranslation();
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -153,7 +199,7 @@ export default function ChatView() {
         <div className="flex-1 min-w-80 flex flex-col">
           {hasActiveChat ? (
             <>
-              <ChatMessages messages={persistence.messages} />
+              <ChatMessages messages={persistence.messages} emptyState={<NewChatEmptyState />} />
               <ChatInput
                 agentState={streaming.agentState}
                 partialTranscript=""

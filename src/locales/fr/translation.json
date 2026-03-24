@@ -1497,7 +1497,8 @@
     "untitled": "Sans titre",
     "searchChats": "Rechercher",
     "searchTitle": "Rechercher des conversations",
-    "searchDescription": "Rechercher dans toutes vos conversations"
+    "searchDescription": "Rechercher dans toutes vos conversations",
+    "newChatEmpty": "Démarrez une conversation"
   },
   "referral": {
     "title": "Parrainez et gagnez des récompenses",

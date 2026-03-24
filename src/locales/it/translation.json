@@ -1757,7 +1757,8 @@
     "untitled": "Senza titolo",
     "searchChats": "Cerca chat",
     "searchTitle": "Cerca conversazioni",
-    "searchDescription": "Cerca in tutte le conversazioni"
+    "searchDescription": "Cerca in tutte le conversazioni",
+    "newChatEmpty": "Avvia una conversazione"
   },
   "usage": {
     "approachingLimit": "Limite settimanale quasi raggiunto",
