@@ -11,6 +11,7 @@ interface ChatInputProps {
   onTextSubmit?: (text: string) => void;
   onCancel?: () => void;
   showHotkey?: boolean;
+  autoFocus?: boolean;
 }
 
 function Kbd({ children }: { children: React.ReactNode }) {
@@ -83,6 +84,7 @@ export function ChatInput({
   onTextSubmit,
   onCancel,
   showHotkey = false,
+  autoFocus = false,
 }: ChatInputProps) {
   const { t } = useTranslation();
   const agentKey = useSettingsStore((s) => s.agentKey);
@@ -149,6 +151,7 @@ export function ChatInput({
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isBusy}
+            autoFocus={autoFocus}
             placeholder={t("agentMode.input.typeMessage")}
             className={cn(
               "input-inline flex-1 outline-none bg-transparent",
@@ -157,19 +160,7 @@ export function ChatInput({
               isBusy && "text-muted-foreground/30 cursor-not-allowed"
             )}
           />
-          {isIdle && inputText.trim() ? (
-            <button
-              onClick={handleSubmit}
-              className={cn(
-                "p-1 rounded-sm shrink-0",
-                "text-primary hover:text-primary/80",
-                "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30",
-                "transition-colors duration-100"
-              )}
-            >
-              <SendHorizontal size={14} />
-            </button>
-          ) : isBusy && onCancel ? (
+          {isBusy && onCancel ? (
             <button
               onClick={onCancel}
               className={cn(
@@ -181,15 +172,33 @@ export function ChatInput({
             >
               <Square size={12} className="fill-current" />
             </button>
-          ) : isIdle && showHotkey ? (
-            <div className="flex items-center gap-2 shrink-0">
-              <div
-                className="text-muted-foreground/50"
-                style={{ animation: "agent-mic-pulse 2.5s ease-in-out infinite" }}
+          ) : isIdle ? (
+            <div className="flex items-center gap-1 shrink-0">
+              {showHotkey && (
+                <div className="flex items-center gap-2 mr-1">
+                  <div
+                    className="text-muted-foreground/50"
+                    style={{ animation: "agent-mic-pulse 2.5s ease-in-out infinite" }}
+                  >
+                    <Mic size={14} />
+                  </div>
+                  <HotkeyKeys hotkey={agentKey} />
+                </div>
+              )}
+              <button
+                onClick={handleSubmit}
+                disabled={!inputText.trim()}
+                className={cn(
+                  "p-1 rounded-sm",
+                  "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30",
+                  "transition-colors duration-100",
+                  inputText.trim()
+                    ? "text-primary hover:text-primary/80"
+                    : "text-muted-foreground/25 cursor-default"
+                )}
               >
-                <Mic size={14} />
-              </div>
-              <HotkeyKeys hotkey={agentKey} />
+                <SendHorizontal size={14} />
+              </button>
             </div>
           ) : null}
         </div>

@@ -159,6 +159,7 @@ export default function ChatView() {
                 partialTranscript=""
                 onTextSubmit={handleTextSubmit}
                 onCancel={streaming.cancelStream}
+                autoFocus={isNewChat}
               />
             </>
           ) : (
