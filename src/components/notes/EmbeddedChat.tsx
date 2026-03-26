@@ -56,9 +56,7 @@ export default function EmbeddedChat({
 
   const header = (
     <div className="h-9 flex items-center px-3 shrink-0">
-      <span className="text-xs font-medium text-foreground/50">
-        {t("embeddedChat.title")}
-      </span>
+      <span className="text-xs font-medium text-foreground/50">{t("embeddedChat.title")}</span>
       <div className="flex-1" />
       <div className="flex items-center gap-0.5">
         {mode === "floating" ? (
