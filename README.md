@@ -14,21 +14,6 @@
 
 <p align="center">Voice-to-text dictation and productivity app with AI agents, meeting transcription, notes, and local/cloud speech recognition.<br/>Privacy-first and available cross-platform.</p>
 
-## Sponsors
-
-<p align="center">Sponsored by</p>
-<p align="center">
-  <a href="https://console.neon.tech/app/?promo=openwhispr">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://neon.com/brand/neon-logo-dark-color.svg">
-      <source media="(prefers-color-scheme: light)" srcset="https://neon.com/brand/neon-logo-light-color.svg">
-      <img width="250" alt="Neon" src="https://neon.com/brand/neon-logo-light-color.svg">
-    </picture>
-  </a>
-</p>
-
-<p align="center"><a href="https://console.neon.tech/app/?promo=openwhispr">Neon</a> is the serverless Postgres platform powering OpenWhispr Cloud accounts, sync, and authentication.</p>
-
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=OpenWhispr/openwhispr&type=date&legend=top-left)](https://www.star-history.com/#OpenWhispr/openwhispr&type=date&legend=top-left)
@@ -888,6 +873,20 @@ OpenWhispr is actively maintained and ready for production use. Current version:
 - ✅ Referral program with shareable invite cards
 - ✅ Dedicated meeting mode hotkey
 - ✅ CodeQL static analysis and Dependabot dependency updates
+
+## Sponsors
+
+<p align="center">
+  <a href="https://console.neon.tech/app/?promo=openwhispr">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://neon.com/brand/neon-logo-dark-color.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://neon.com/brand/neon-logo-light-color.svg">
+      <img width="250" alt="Neon" src="https://neon.com/brand/neon-logo-light-color.svg">
+    </picture>
+  </a>
+</p>
+
+<p align="center"><a href="https://console.neon.tech/app/?promo=openwhispr">Neon</a> is the serverless Postgres platform powering OpenWhispr Cloud accounts, sync, and authentication.</p>
 
 ## Acknowledgments
 
