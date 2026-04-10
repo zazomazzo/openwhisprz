@@ -1848,7 +1848,8 @@
   "app": {
     "toasts": {
       "hotkeyChanged": {
-        "title": "快捷键已更改"
+        "title": "快捷键已更改",
+        "description": "\"{{original}}\" 不可用，已改用 \"{{fallback}}\"。您可以在设置中更改。"
       },
       "hotkeyUnavailable": {
         "title": "快捷键不可用",

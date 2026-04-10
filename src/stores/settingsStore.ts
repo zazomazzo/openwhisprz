@@ -715,15 +715,34 @@ export async function initializeSettings(): Promise<void> {
       );
     }
 
-    // Sync dictation key from main process
+    // Sync dictation key from main process.
+    // localStorage holds the user's preferred hotkey. Only populate from .env
+    // when localStorage is empty (fresh install / cleared data).
     try {
-      const envKey = await window.electronAPI.getDictationKey?.();
-      if (envKey && envKey !== state.dictationKey) {
-        createStringSetter("dictationKey")(envKey);
+      if (!state.dictationKey) {
+        const envKey = await window.electronAPI.getDictationKey?.();
+        if (envKey) {
+          createStringSetter("dictationKey")(envKey);
+        }
       }
     } catch (err) {
       logger.warn(
         "Failed to sync dictation key on startup",
+        { error: (err as Error).message },
+        "settings"
+      );
+    }
+
+    // Show the active hotkey in UI (zustand only, not localStorage).
+    // May return constructor default during early startup; corrected by dictation-key-active event later.
+    try {
+      const activeKey = await window.electronAPI?.getActiveDictationKey?.();
+      if (activeKey) {
+        useSettingsStore.setState({ dictationKey: activeKey });
+      }
+    } catch (err) {
+      logger.warn(
+        "Failed to sync active dictation key on startup",
         { error: (err as Error).message },
         "settings"
       );
@@ -859,6 +878,11 @@ export async function initializeSettings(): Promise<void> {
     if (key === "uiLanguage" && typeof value === "string") {
       void i18n.changeLanguage(value);
     }
+  });
+
+  // Active hotkey updates from backend — zustand only, not localStorage.
+  window.electronAPI?.onDictationKeyActive?.((key: string) => {
+    useSettingsStore.setState({ dictationKey: key });
   });
 
   // Sync settings pushed from main process (e.g., hotkey changed in control panel)

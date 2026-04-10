@@ -1901,7 +1901,8 @@
   "app": {
     "toasts": {
       "hotkeyChanged": {
-        "title": "Hotkey changed"
+        "title": "Hotkey changed",
+        "description": "\"{{original}}\" was unavailable. Using \"{{fallback}}\" instead. You can change this in Settings."
       },
       "hotkeyUnavailable": {
         "title": "Hotkey unavailable",

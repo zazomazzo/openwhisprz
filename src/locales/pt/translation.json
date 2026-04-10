@@ -1853,7 +1853,8 @@
   "app": {
     "toasts": {
       "hotkeyChanged": {
-        "title": "Atalho alterado"
+        "title": "Atalho alterado",
+        "description": "\"{{original}}\" não estava disponível. Usando \"{{fallback}}\" em vez disso. Você pode alterar isso nas Configurações."
       },
       "hotkeyUnavailable": {
         "title": "Atalho indisponível",

@@ -1853,7 +1853,8 @@
   "app": {
     "toasts": {
       "hotkeyChanged": {
-        "title": "ホットキーが変更されました"
+        "title": "ホットキーが変更されました",
+        "description": "\"{{original}}\" が使用できませんでした。代わりに \"{{fallback}}\" を使用します。設定で変更できます。"
       },
       "hotkeyUnavailable": {
         "title": "ホットキーが使用できません",

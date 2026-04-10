@@ -108,7 +108,7 @@ export default function App() {
     const unsubscribeFallback = window.electronAPI?.onHotkeyFallbackUsed?.((data) => {
       toast({
         title: t("app.toasts.hotkeyChanged.title"),
-        description: data.message,
+        description: t("app.toasts.hotkeyChanged.description", { original: data.original, fallback: data.fallback }),
         duration: 8000,
       });
     });

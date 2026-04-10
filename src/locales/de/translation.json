@@ -1853,7 +1853,8 @@
   "app": {
     "toasts": {
       "hotkeyChanged": {
-        "title": "Tastenkombination geändert"
+        "title": "Tastenkombination geändert",
+        "description": "\"{{original}}\" war nicht verfügbar. Stattdessen wird \"{{fallback}}\" verwendet. Du kannst dies in den Einstellungen ändern."
       },
       "hotkeyUnavailable": {
         "title": "Tastenkombination nicht verfügbar",

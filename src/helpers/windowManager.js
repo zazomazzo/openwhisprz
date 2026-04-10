@@ -43,6 +43,7 @@ class WindowManager {
 
     app.on("before-quit", () => {
       this.isQuitting = true;
+      this.hotkeyManager.unregisterAll();
     });
   }
 

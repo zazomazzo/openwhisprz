@@ -1853,7 +1853,8 @@
   "app": {
     "toasts": {
       "hotkeyChanged": {
-        "title": "Atajo cambiado"
+        "title": "Atajo cambiado",
+        "description": "\"{{original}}\" no estaba disponible. Se usará \"{{fallback}}\" en su lugar. Puedes cambiarlo en Configuración."
       },
       "hotkeyUnavailable": {
         "title": "Atajo no disponible",

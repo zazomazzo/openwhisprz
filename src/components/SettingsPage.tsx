@@ -61,7 +61,7 @@ import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { validateHotkeyForSlot } from "../utils/hotkeyValidation";
 import { getPlatform, getCachedPlatform } from "../utils/platform";
-import { getDefaultHotkey, formatHotkeyLabel } from "../utils/hotkeys";
+import { formatHotkeyLabel } from "../utils/hotkeys";
 import { ActivationModeSelector } from "./ui/ActivationModeSelector";
 import { Toggle } from "./ui/toggle";
 import DeveloperSection from "./DeveloperSection";
@@ -1008,6 +1008,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   );
 
   const [isUsingNativeShortcut, setIsUsingNativeShortcut] = useState(false);
+  const [effectiveDefaultHotkey, setEffectiveDefaultHotkey] = useState<string | null>(null);
 
   const platform = getCachedPlatform();
 
@@ -1113,6 +1114,12 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
         }
       } catch (error) {
         logger.error("Failed to check hotkey mode", error, "settings");
+      }
+      try {
+        const key = await window.electronAPI?.getEffectiveDefaultHotkey?.();
+        if (key) setEffectiveDefaultHotkey(key);
+      } catch (error) {
+        logger.error("Failed to get effective default hotkey", error, "settings");
       }
     };
     checkHotkeyMode();
@@ -2974,14 +2981,14 @@ EOF`,
                     disabled={isHotkeyRegistering}
                     validate={validateDictationHotkey}
                   />
-                  {dictationKey && dictationKey !== getDefaultHotkey() && (
+                  {effectiveDefaultHotkey && dictationKey && dictationKey !== effectiveDefaultHotkey && (
                     <button
-                      onClick={() => registerHotkey(getDefaultHotkey())}
+                      onClick={() => registerHotkey(effectiveDefaultHotkey)}
                       disabled={isHotkeyRegistering}
                       className="mt-2 text-xs text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
                     >
                       {t("settingsPage.general.hotkey.resetToDefault", {
-                        hotkey: formatHotkeyLabel(getDefaultHotkey()),
+                        hotkey: formatHotkeyLabel(effectiveDefaultHotkey),
                       })}
                     </button>
                   )}

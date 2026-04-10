@@ -1853,7 +1853,8 @@
   "app": {
     "toasts": {
       "hotkeyChanged": {
-        "title": "Raccourci modifié"
+        "title": "Raccourci modifié",
+        "description": "\"{{original}}\" n'était pas disponible. \"{{fallback}}\" sera utilisé à la place. Vous pouvez le modifier dans les Paramètres."
       },
       "hotkeyUnavailable": {
         "title": "Raccourci indisponible",

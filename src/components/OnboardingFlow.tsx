@@ -155,6 +155,18 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     checkHotkeyMode();
   }, [setActivationMode]);
 
+  // Update wizard UI when backend falls back to a different hotkey.
+  // Only update local state — don't persist to localStorage so the app
+  // retries the preferred key on next launch.
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onHotkeyFallbackUsed?.((data: { fallback: string }) => {
+      if (data?.fallback) {
+        setHotkey(data.fallback);
+      }
+    });
+    return () => unsubscribe?.();
+  }, []);
+
   useEffect(() => {
     const modelToCheck = localTranscriptionProvider === "nvidia" ? parakeetModel : whisperModel;
     if (!useLocalWhisper || !modelToCheck) {
@@ -199,8 +211,17 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       hotkeyStepInitializedRef.current = true;
 
       try {
-        // Get platform-appropriate default hotkey
-        const defaultHotkey = getDefaultHotkey();
+        // Check if backend already registered a hotkey (e.g., KDE D-Bus fallback)
+        const backendKey = localStorage.getItem("dictationKey");
+        if (backendKey && backendKey.trim() !== "") {
+          setHotkey(backendKey);
+          setDictationKey(backendKey);
+          return;
+        }
+
+        // Get platform-appropriate default hotkey from backend (accounts for
+        // X11 modifier-only and GNOME gsettings limitations)
+        const defaultHotkey = await window.electronAPI?.getEffectiveDefaultHotkey?.() || getDefaultHotkey();
         const platform = window.electronAPI?.getPlatform?.() ?? "darwin";
 
         // Only auto-register if no hotkey is currently set

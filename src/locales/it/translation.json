@@ -1853,7 +1853,8 @@
   "app": {
     "toasts": {
       "hotkeyChanged": {
-        "title": "Scorciatoia modificata"
+        "title": "Scorciatoia modificata",
+        "description": "\"{{original}}\" non era disponibile. Verrà usato \"{{fallback}}\" al suo posto. Puoi modificarlo nelle Impostazioni."
       },
       "hotkeyUnavailable": {
         "title": "Scorciatoia non disponibile",
