@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-type PreviewPhase = "listening" | "live" | "hold" | "cleanup" | "final";
+type PreviewPhase = "listening" | "live" | "cleanup" | "final";
 
-const HOLD_DURATION_MS = 3000;
 const FINAL_HIDE_DURATION_MS = 4000;
 const COPIED_RESET_MS = 1400;
 const HIDE_ANIMATION_MS = 220;
@@ -16,7 +15,6 @@ export default function TranscriptionPreviewOverlay() {
   const [phase, setPhase] = useState<PreviewPhase>("listening");
   const [isVisible, setIsVisible] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [showCleanupAfterHold, setShowCleanupAfterHold] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
   const [countdownKey, setCountdownKey] = useState(0);
 
@@ -25,11 +23,8 @@ export default function TranscriptionPreviewOverlay() {
   const phaseRef = useRef<PreviewPhase>("listening");
   const rawTextRef = useRef("");
   const hideTimerRef = useRef<number | null>(null);
-  const holdTimerRef = useRef<number | null>(null);
   const copiedTimerRef = useRef<number | null>(null);
   const resetTimerRef = useRef<number | null>(null);
-  const pendingResultRef = useRef("");
-  const showCleanupAfterHoldRef = useRef(false);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -38,10 +33,6 @@ export default function TranscriptionPreviewOverlay() {
   useEffect(() => {
     rawTextRef.current = rawText;
   }, [rawText]);
-
-  useEffect(() => {
-    showCleanupAfterHoldRef.current = showCleanupAfterHold;
-  }, [showCleanupAfterHold]);
 
   const clearTimer = (timerRef: { current: number | null }) => {
     if (timerRef.current) {
@@ -52,7 +43,6 @@ export default function TranscriptionPreviewOverlay() {
 
   const clearLifecycleTimers = useCallback(() => {
     clearTimer(hideTimerRef);
-    clearTimer(holdTimerRef);
     clearTimer(resetTimerRef);
   }, []);
 
@@ -69,11 +59,9 @@ export default function TranscriptionPreviewOverlay() {
   }, []);
 
   const activeText = phase === "final" ? finalText || rawText : rawText;
-  const countdownMs =
-    phase === "hold" ? HOLD_DURATION_MS : phase === "final" ? FINAL_HIDE_DURATION_MS : 0;
 
   useEffect(() => {
-    if (phase === "hold" || phase === "final") {
+    if (phase === "final") {
       setCountdownKey((k) => k + 1);
     }
   }, [phase]);
@@ -93,7 +81,6 @@ export default function TranscriptionPreviewOverlay() {
         return;
       }
 
-      pendingResultRef.current = "";
       clearLifecycleTimers();
       setFinalText(trimmed);
       setPhase("final");
@@ -140,11 +127,9 @@ export default function TranscriptionPreviewOverlay() {
     const handlePreviewText = window.electronAPI?.onPreviewText?.((incoming: string) => {
       clearLifecycleTimers();
       clearTimer(copiedTimerRef);
-      pendingResultRef.current = "";
       setRawText(incoming?.trim?.() || "");
       setFinalText("");
       setCopied(false);
-      setShowCleanupAfterHold(false);
       setHasOverflow(false);
       setPhase(incoming?.trim?.() ? "live" : "listening");
       setIsVisible(true);
@@ -155,11 +140,7 @@ export default function TranscriptionPreviewOverlay() {
       if (!trimmedChunk) return;
 
       setRawText((prev) => (prev ? `${prev} ${trimmedChunk}` : trimmedChunk));
-      if (
-        phaseRef.current !== "hold" &&
-        phaseRef.current !== "cleanup" &&
-        phaseRef.current !== "final"
-      ) {
+      if (phaseRef.current !== "cleanup" && phaseRef.current !== "final") {
         setPhase("live");
       }
       setIsVisible(true);
@@ -169,35 +150,19 @@ export default function TranscriptionPreviewOverlay() {
       clearTimer(hideTimerRef);
       setCopied(false);
 
-      const shouldShowCleanup = !!payload?.showCleanup;
-      setShowCleanupAfterHold(shouldShowCleanup);
-      setPhase(rawTextRef.current.trim() ? "hold" : "cleanup");
+      if (phaseRef.current === "final") return;
 
-      clearTimer(holdTimerRef);
-      holdTimerRef.current = window.setTimeout(() => {
-        if (pendingResultRef.current) {
-          showFinalResult(pendingResultRef.current);
-          return;
-        }
-
-        if (showCleanupAfterHoldRef.current) {
-          setPhase("cleanup");
-          return;
-        }
-
-        window.electronAPI?.hideDictationPreview?.();
-      }, HOLD_DURATION_MS);
+      if (payload?.showCleanup) {
+        setPhase("cleanup");
+      } else {
+        showFinalResult(rawTextRef.current);
+      }
     });
 
     const handlePreviewResult = window.electronAPI?.onPreviewResult?.((payload) => {
       const nextText = payload?.text?.trim?.();
       if (!nextText) {
         window.electronAPI?.hideDictationPreview?.();
-        return;
-      }
-
-      if (phaseRef.current === "hold") {
-        pendingResultRef.current = nextText;
         return;
       }
 
@@ -211,11 +176,9 @@ export default function TranscriptionPreviewOverlay() {
 
       clearTimer(resetTimerRef);
       resetTimerRef.current = window.setTimeout(() => {
-        pendingResultRef.current = "";
         setRawText("");
         setFinalText("");
         setCopied(false);
-        setShowCleanupAfterHold(false);
         setHasOverflow(false);
         setPhase("listening");
       }, HIDE_ANIMATION_MS);
@@ -273,9 +236,7 @@ export default function TranscriptionPreviewOverlay() {
       ? t("transcriptionPreview.ready", { defaultValue: "Ready" })
       : phase === "cleanup"
         ? t("transcriptionPreview.polishing", { defaultValue: "Polishing..." })
-        : phase === "hold"
-          ? t("transcriptionPreview.captured", { defaultValue: "Captured" })
-          : t("transcriptionPreview.listening", { defaultValue: "Listening..." });
+        : t("transcriptionPreview.listening", { defaultValue: "Listening..." });
 
   return (
     <div className="meeting-notification-window h-full w-full bg-transparent p-2">
@@ -289,9 +250,7 @@ export default function TranscriptionPreviewOverlay() {
             ? "border-emerald-500/18 dark:border-emerald-500/20"
             : phase === "cleanup"
               ? "border-accent/22 dark:border-accent/25"
-              : phase === "hold"
-                ? "border-primary/20 dark:border-primary/22"
-                : "border-border/40 dark:border-border-subtle/45",
+              : "border-border/40 dark:border-border-subtle/45",
           "transition-all duration-200 ease-out",
           isVisible ? "translate-y-0 opacity-100 scale-100" : "translate-y-4 opacity-0 scale-[0.97]",
         ].join(" ")}
@@ -413,15 +372,12 @@ export default function TranscriptionPreviewOverlay() {
           </div>
         )}
 
-        {countdownMs > 0 && (
+        {phase === "final" && (
           <div className="absolute bottom-0 inset-x-0 h-[2px] overflow-hidden rounded-b-xl">
             <div
               key={countdownKey}
-              className={[
-                "h-full rounded-b-xl",
-                phase === "final" ? "bg-emerald-500/25" : "bg-primary/22",
-              ].join(" ")}
-              style={{ animation: `preview-countdown ${countdownMs}ms linear forwards` }}
+              className="h-full rounded-b-xl bg-emerald-500/25"
+              style={{ animation: `preview-countdown ${FINAL_HIDE_DURATION_MS}ms linear forwards` }}
             />
           </div>
         )}
