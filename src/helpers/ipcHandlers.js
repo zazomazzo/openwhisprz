@@ -1201,48 +1201,6 @@ class IPCHandlers {
       return this.whisperManager.getServerStatus();
     });
 
-    ipcMain.handle("transcribe-lan-whisper", async (event, audioBlob, options = {}) => {
-      debugLogger.log("transcribe-lan-whisper called", {
-        audioBlobSize: audioBlob?.byteLength || audioBlob?.length || 0,
-        url: options.url,
-      });
-
-      if (!options.url) {
-        return {
-          success: false,
-          error: "lan_url_missing",
-          message: "LAN server URL not configured",
-        };
-      }
-
-      try {
-        const result = await this.whisperManager.transcribeViaLan(audioBlob, options.url, options);
-
-        debugLogger.log("LAN Whisper result", {
-          success: result.success,
-          hasText: !!result.text,
-        });
-
-        if (!result.success && result.message === "No audio detected") {
-          event.sender.send("no-audio-detected");
-        }
-
-        return result;
-      } catch (error) {
-        debugLogger.error("LAN Whisper transcription error", { error: error.message });
-
-        if (error.message.includes("unreachable")) {
-          return {
-            success: false,
-            error: "lan_unreachable",
-            message: "LAN whisper-server is unreachable. Check the URL and network connection.",
-          };
-        }
-
-        return { success: false, error: "lan_error", message: error.message };
-      }
-    });
-
     ipcMain.handle("detect-gpu", async () => {
       const { detectNvidiaGpu } = require("../utils/gpuDetection");
       return detectNvidiaGpu();

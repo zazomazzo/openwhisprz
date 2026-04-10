@@ -40,6 +40,15 @@ class ReasoningService extends BaseReasoningService {
     }
   }
 
+  private isLanReasoningMode(): boolean {
+    const settings = getSettings();
+    return (
+      settings.reasoningMode === "self-hosted" &&
+      settings.remoteReasoningType === "lan" &&
+      !!settings.remoteReasoningUrl
+    );
+  }
+
   private getConfiguredOpenAIBase(): string {
     if (typeof window === "undefined") {
       return API_ENDPOINTS.OPENAI_BASE;
@@ -437,16 +446,12 @@ class ReasoningService extends BaseReasoningService {
       let result: string;
       const startTime = Date.now();
 
-      const settings = getSettings();
-      const isLanReasoning =
-        settings.reasoningMode === "self-hosted" &&
-        settings.remoteReasoningType === "lan" &&
-        settings.remoteReasoningUrl;
+      const isLanReasoning = this.isLanReasoningMode();
 
       logger.logReasoning("ROUTING_TO_PROVIDER", {
         provider,
         model,
-        isLanReasoning: !!isLanReasoning,
+        isLanReasoning,
       });
 
       if (isLanReasoning) {
@@ -1201,10 +1206,7 @@ class ReasoningService extends BaseReasoningService {
     const isLocalProvider = !cloudProviders.includes(provider);
 
     const settings = getSettings();
-    const isLanReasoning =
-      settings.reasoningMode === "self-hosted" &&
-      settings.remoteReasoningType === "lan" &&
-      settings.remoteReasoningUrl;
+    const isLanReasoning = this.isLanReasoningMode();
 
     let endpoint: string;
     let apiKey = "";
@@ -1392,10 +1394,7 @@ class ReasoningService extends BaseReasoningService {
     const isLocalProvider = !cloudProviders.includes(provider);
 
     const settings = getSettings();
-    const isLanReasoning =
-      settings.reasoningMode === "self-hosted" &&
-      settings.remoteReasoningType === "lan" &&
-      settings.remoteReasoningUrl;
+    const isLanReasoning = this.isLanReasoningMode();
 
     if ((isLocalProvider || isLanReasoning) && !tools) {
       const contentGen = this.processTextStreaming(messages, model, provider, config);
@@ -1662,16 +1661,12 @@ class ReasoningService extends BaseReasoningService {
         return true;
       }
 
-      const settings = getSettings();
-      if (
-        settings.reasoningMode === "self-hosted" &&
-        settings.remoteReasoningType === "lan" &&
-        settings.remoteReasoningUrl?.trim()
-      ) {
+      if (this.isLanReasoningMode()) {
         logger.logReasoning("API_KEY_CHECK", { lanReasoning: true });
         return true;
       }
 
+      const settings = getSettings();
       if (settings.reasoningProvider === "custom" && settings.cloudReasoningBaseUrl?.trim()) {
         logger.logReasoning("API_KEY_CHECK", {
           customProvider: true,

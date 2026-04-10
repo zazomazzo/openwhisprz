@@ -207,10 +207,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   checkFFmpegAvailability: () => ipcRenderer.invoke("check-ffmpeg-availability"),
   getAudioDiagnostics: () => ipcRenderer.invoke("get-audio-diagnostics"),
 
-  // LAN Whisper transcription (remote whisper-server on local network)
-  transcribeLanWhisper: (audioBlob, options) =>
-    ipcRenderer.invoke("transcribe-lan-whisper", audioBlob, options),
-
   // Whisper server functions (faster repeated transcriptions)
   whisperServerStart: (modelName) => ipcRenderer.invoke("whisper-server-start", modelName),
   whisperServerStop: () => ipcRenderer.invoke("whisper-server-stop"),

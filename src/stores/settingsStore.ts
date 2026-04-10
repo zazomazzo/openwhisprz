@@ -386,8 +386,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     return "openwhispr" as InferenceMode;
   })(),
   remoteTranscriptionType: (() => {
-    const v = readString("remoteTranscriptionType", "openai-compatible");
-    return v === "lan" ? "lan" : ("openai-compatible" as SelfHostedType);
+    const v = readString("remoteTranscriptionType", "lan");
+    return v === "openai-compatible" ? "openai-compatible" : ("lan" as SelfHostedType);
   })(),
   remoteTranscriptionUrl: readString("remoteTranscriptionUrl", ""),
   reasoningMode: (() => {
@@ -396,8 +396,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     return "openwhispr" as InferenceMode;
   })(),
   remoteReasoningType: (() => {
-    const v = readString("remoteReasoningType", "openai-compatible");
-    return v === "lan" ? "lan" : ("openai-compatible" as SelfHostedType);
+    const v = readString("remoteReasoningType", "lan");
+    return v === "openai-compatible" ? "openai-compatible" : ("lan" as SelfHostedType);
   })(),
   remoteReasoningUrl: readString("remoteReasoningUrl", ""),
 
