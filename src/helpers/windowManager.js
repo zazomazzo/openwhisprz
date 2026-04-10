@@ -13,6 +13,7 @@ const {
   AGENT_OVERLAY_CONFIG,
   NOTIFICATION_WINDOW_CONFIG,
   TRANSCRIPTION_PREVIEW_CONFIG,
+  TRANSCRIPTION_PREVIEW_SIZE_LIMITS,
   WINDOW_SIZES,
   WindowPositionUtil,
 } = require("./windowConfig");
@@ -762,7 +763,10 @@ class WindowManager {
 
     if (mainBounds) {
       const display = screen.getDisplayNearestPoint({ x: mainBounds.x, y: mainBounds.y });
-      const position = WindowPositionUtil.getTranscriptionPreviewPosition(display, mainBounds);
+      const position = WindowPositionUtil.getTranscriptionPreviewPosition(display, mainBounds, {
+        width: TRANSCRIPTION_PREVIEW_CONFIG.width,
+        height: TRANSCRIPTION_PREVIEW_CONFIG.height,
+      });
       this.transcriptionPreviewWindow.setBounds(position);
     }
 
@@ -776,6 +780,20 @@ class WindowManager {
     this.transcriptionPreviewWindow.webContents.send("preview-append", text);
   }
 
+  holdTranscriptionPreview(options = {}) {
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+    this.transcriptionPreviewWindow.webContents.send("preview-hold", {
+      showCleanup: !!options.showCleanup,
+    });
+  }
+
+  completeTranscriptionPreview(text) {
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+    this.transcriptionPreviewWindow.webContents.send("preview-result", { text });
+    this.transcriptionPreviewWindow.showInactive();
+    WindowPositionUtil.setupAlwaysOnTop(this.transcriptionPreviewWindow);
+  }
+
   hideTranscriptionPreview() {
     if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
 
@@ -785,6 +803,44 @@ class WindowManager {
         this.transcriptionPreviewWindow.hide();
       }
     }, 200);
+  }
+
+  resizeTranscriptionPreview(width, height) {
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) {
+      return { success: false, error: "Preview window not available" };
+    }
+
+    const targetWidth = Math.max(
+      TRANSCRIPTION_PREVIEW_SIZE_LIMITS.minWidth,
+      Math.min(Math.round(width), TRANSCRIPTION_PREVIEW_SIZE_LIMITS.maxWidth)
+    );
+    const targetHeight = Math.max(
+      TRANSCRIPTION_PREVIEW_SIZE_LIMITS.minHeight,
+      Math.min(Math.round(height), TRANSCRIPTION_PREVIEW_SIZE_LIMITS.maxHeight)
+    );
+
+    const anchorBounds =
+      this.mainWindow && !this.mainWindow.isDestroyed()
+        ? this.mainWindow.getBounds()
+        : this.transcriptionPreviewWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({ x: anchorBounds.x, y: anchorBounds.y });
+    const bounds = WindowPositionUtil.getTranscriptionPreviewPosition(display, anchorBounds, {
+      width: targetWidth,
+      height: targetHeight,
+    });
+
+    const currentBounds = this.transcriptionPreviewWindow.getBounds();
+    if (
+      currentBounds.x === bounds.x &&
+      currentBounds.y === bounds.y &&
+      currentBounds.width === bounds.width &&
+      currentBounds.height === bounds.height
+    ) {
+      return { success: true, bounds };
+    }
+
+    this.transcriptionPreviewWindow.setBounds(bounds);
+    return { success: true, bounds };
   }
 
   resizeAgentWindow(width, height) {

@@ -3019,6 +3019,22 @@ class IPCHandlers {
     let dictationPreviewTranscribing = false;
     let dictationPreviewProvider = null;
     let dictationPreviewModel = null;
+    let dictationPreviewSessionActive = false;
+
+    const resetDictationPreviewState = ({ preserveSession = false } = {}) => {
+      if (dictationPreviewTimer) {
+        clearInterval(dictationPreviewTimer);
+        dictationPreviewTimer = null;
+      }
+      dictationPreviewMode = false;
+      if (!preserveSession) {
+        dictationPreviewSessionActive = false;
+      }
+      dictationPreviewBuffer = [];
+      dictationPreviewTranscribing = false;
+      dictationPreviewProvider = null;
+      dictationPreviewModel = null;
+    };
 
     const transcribeDictationPreviewChunk = async () => {
       if (dictationPreviewTranscribing) return;
@@ -3351,10 +3367,11 @@ class IPCHandlers {
     });
 
     ipcMain.handle("start-dictation-preview", async (_event, { provider, model }) => {
+      resetDictationPreviewState();
       dictationPreviewMode = true;
+      dictationPreviewSessionActive = true;
       dictationPreviewProvider = provider;
       dictationPreviewModel = model;
-      dictationPreviewBuffer = [];
       dictationPreviewChunkCount = 0;
       this.windowManager.showTranscriptionPreview("");
       dictationPreviewTimer = setInterval(() => transcribeDictationPreviewChunk(), 1500);
@@ -3377,18 +3394,50 @@ class IPCHandlers {
       );
     });
 
-    ipcMain.handle("stop-dictation-preview", async () => {
-      if (dictationPreviewTimer) {
-        clearInterval(dictationPreviewTimer);
-        dictationPreviewTimer = null;
-      }
-      await transcribeDictationPreviewChunk();
+    ipcMain.handle("dismiss-dictation-preview", async () => {
+      resetDictationPreviewState();
       this.windowManager.hideTranscriptionPreview();
-      dictationPreviewMode = false;
-      dictationPreviewBuffer = [];
-      dictationPreviewTranscribing = false;
-      dictationPreviewProvider = null;
-      dictationPreviewModel = null;
+      return { success: true };
+    });
+
+    ipcMain.handle("complete-dictation-preview", async (_event, { text } = {}) => {
+      if (!dictationPreviewSessionActive) {
+        return { success: true };
+      }
+      if (typeof text === "string" && text.trim()) {
+        this.windowManager.completeTranscriptionPreview(text);
+      } else {
+        resetDictationPreviewState();
+        this.windowManager.hideTranscriptionPreview();
+      }
+      return { success: true };
+    });
+
+    ipcMain.handle("hide-dictation-preview", async () => {
+      resetDictationPreviewState();
+      this.windowManager.hideTranscriptionPreview();
+      return { success: true };
+    });
+
+    ipcMain.handle("resize-transcription-preview-window", async (_event, width, height) => {
+      if (!dictationPreviewSessionActive) {
+        return { success: false, error: "Preview session not active" };
+      }
+      return this.windowManager.resizeTranscriptionPreview(width, height);
+    });
+
+    ipcMain.handle("stop-dictation-preview", async (_event, options = {}) => {
+      if (!dictationPreviewMode && !dictationPreviewSessionActive) {
+        return { success: true };
+      }
+      clearInterval(dictationPreviewTimer);
+      dictationPreviewTimer = null;
+      await transcribeDictationPreviewChunk();
+      resetDictationPreviewState({ preserveSession: true });
+      if (!dictationPreviewSessionActive) {
+        return { success: true };
+      }
+      this.windowManager.holdTranscriptionPreview(options);
       return { success: true };
     });
 

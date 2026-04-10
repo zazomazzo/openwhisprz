@@ -1,67 +1,393 @@
-import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, Copy, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+type PreviewPhase = "listening" | "live" | "hold" | "cleanup" | "final";
+
+const HOLD_DURATION_MS = 3000;
+const FINAL_HIDE_DURATION_MS = 4500;
+const COPIED_RESET_MS = 1400;
+const HIDE_ANIMATION_MS = 220;
 
 export default function TranscriptionPreviewOverlay() {
-  const [text, setText] = useState("");
+  const { t } = useTranslation();
+  const [rawText, setRawText] = useState("");
+  const [finalText, setFinalText] = useState("");
+  const [phase, setPhase] = useState<PreviewPhase>("listening");
   const [isVisible, setIsVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showCleanupAfterHold, setShowCleanupAfterHold] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
+
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const textRef = useRef<HTMLDivElement | null>(null);
+  const phaseRef = useRef<PreviewPhase>("listening");
+  const rawTextRef = useRef("");
+  const hideTimerRef = useRef<number | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
+  const copiedTimerRef = useRef<number | null>(null);
+  const resetTimerRef = useRef<number | null>(null);
+  const pendingResultRef = useRef("");
+  const showCleanupAfterHoldRef = useRef(false);
 
   useEffect(() => {
-    setTimeout(() => setIsVisible(true), 50);
+    phaseRef.current = phase;
+  }, [phase]);
 
-    const cleanupText = window.electronAPI?.onPreviewText?.((incoming: string) => {
-      setText(incoming);
+  useEffect(() => {
+    rawTextRef.current = rawText;
+  }, [rawText]);
+
+  useEffect(() => {
+    showCleanupAfterHoldRef.current = showCleanupAfterHold;
+  }, [showCleanupAfterHold]);
+
+  const clearTimer = (timerRef: { current: number | null }) => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const clearLifecycleTimers = useCallback(() => {
+    clearTimer(hideTimerRef);
+    clearTimer(holdTimerRef);
+    clearTimer(resetTimerRef);
+  }, []);
+
+  const resetCopyState = useCallback(() => {
+    clearTimer(copiedTimerRef);
+    copiedTimerRef.current = window.setTimeout(() => setCopied(false), COPIED_RESET_MS);
+  }, []);
+
+  const startHideTimer = useCallback((delayMs: number) => {
+    clearTimer(hideTimerRef);
+    hideTimerRef.current = window.setTimeout(() => {
+      window.electronAPI?.hideDictationPreview?.();
+    }, delayMs);
+  }, []);
+
+  const activeText = phase === "final" ? finalText || rawText : rawText;
+
+  const targetWidth = useMemo(() => {
+    if (phase === "listening" && !rawText) return 400;
+    if (activeText.length > 300) return 540;
+    if (activeText.length > 100 || phase === "cleanup" || phase === "final") return 480;
+    return 420;
+  }, [activeText.length, phase, rawText]);
+
+  const showFinalResult = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) {
+        window.electronAPI?.hideDictationPreview?.();
+        return;
+      }
+
+      pendingResultRef.current = "";
+      clearLifecycleTimers();
+      setFinalText(trimmed);
+      setPhase("final");
+      setCopied(false);
+      setIsVisible(true);
+      startHideTimer(FINAL_HIDE_DURATION_MS);
+    },
+    [clearLifecycleTimers, startHideTimer]
+  );
+
+  const requestResize = useCallback(() => {
+    if (!isVisible || !shellRef.current || !window.electronAPI?.resizeTranscriptionPreviewWindow) {
+      return;
+    }
+
+    const nextHeight = Math.ceil(shellRef.current.getBoundingClientRect().height) + 16;
+    window.electronAPI.resizeTranscriptionPreviewWindow(targetWidth, nextHeight).catch(() => {});
+  }, [isVisible, targetWidth]);
+
+  useEffect(() => {
+    if (!isVisible || !shellRef.current) return;
+
+    const node = shellRef.current;
+    const frameId = window.requestAnimationFrame(() => requestResize());
+    const observer = new ResizeObserver(() => requestResize());
+    observer.observe(node);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      observer.disconnect();
+    };
+  }, [isVisible, requestResize]);
+
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+      setHasOverflow(el.scrollHeight > el.clientHeight + 2);
+    });
+  }, [rawText, finalText, phase]);
+
+  useEffect(() => {
+    const handlePreviewText = window.electronAPI?.onPreviewText?.((incoming: string) => {
+      clearLifecycleTimers();
+      clearTimer(copiedTimerRef);
+      pendingResultRef.current = "";
+      setRawText(incoming?.trim?.() || "");
+      setFinalText("");
+      setCopied(false);
+      setShowCleanupAfterHold(false);
+      setHasOverflow(false);
+      setPhase(incoming?.trim?.() ? "live" : "listening");
+      setIsVisible(true);
     });
 
-    const cleanupAppend = window.electronAPI?.onPreviewAppend?.((chunk: string) => {
-      setText((prev) => (prev ? prev + " " + chunk : chunk));
+    const handlePreviewAppend = window.electronAPI?.onPreviewAppend?.((chunk: string) => {
+      const trimmedChunk = chunk?.trim?.();
+      if (!trimmedChunk) return;
+
+      setRawText((prev) => (prev ? `${prev} ${trimmedChunk}` : trimmedChunk));
+      if (
+        phaseRef.current !== "hold" &&
+        phaseRef.current !== "cleanup" &&
+        phaseRef.current !== "final"
+      ) {
+        setPhase("live");
+      }
+      setIsVisible(true);
     });
 
-    const cleanupHide = window.electronAPI?.onPreviewHide?.(() => {
+    const handlePreviewHold = window.electronAPI?.onPreviewHold?.((payload) => {
+      clearTimer(hideTimerRef);
+      setCopied(false);
+
+      const shouldShowCleanup = !!payload?.showCleanup;
+      setShowCleanupAfterHold(shouldShowCleanup);
+      setPhase(rawTextRef.current.trim() ? "hold" : "cleanup");
+
+      clearTimer(holdTimerRef);
+      holdTimerRef.current = window.setTimeout(() => {
+        if (pendingResultRef.current) {
+          showFinalResult(pendingResultRef.current);
+          return;
+        }
+
+        if (showCleanupAfterHoldRef.current) {
+          setPhase("cleanup");
+          return;
+        }
+
+        window.electronAPI?.hideDictationPreview?.();
+      }, HOLD_DURATION_MS);
+    });
+
+    const handlePreviewResult = window.electronAPI?.onPreviewResult?.((payload) => {
+      const nextText = payload?.text?.trim?.();
+      if (!nextText) {
+        window.electronAPI?.hideDictationPreview?.();
+        return;
+      }
+
+      if (phaseRef.current === "hold") {
+        pendingResultRef.current = nextText;
+        return;
+      }
+
+      showFinalResult(nextText);
+    });
+
+    const handlePreviewHide = window.electronAPI?.onPreviewHide?.(() => {
+      clearLifecycleTimers();
+      clearTimer(copiedTimerRef);
       setIsVisible(false);
-      setTimeout(() => setText(""), 200);
+
+      clearTimer(resetTimerRef);
+      resetTimerRef.current = window.setTimeout(() => {
+        pendingResultRef.current = "";
+        setRawText("");
+        setFinalText("");
+        setCopied(false);
+        setShowCleanupAfterHold(false);
+        setHasOverflow(false);
+        setPhase("listening");
+      }, HIDE_ANIMATION_MS);
     });
 
     return () => {
-      cleanupText?.();
-      cleanupAppend?.();
-      cleanupHide?.();
+      clearLifecycleTimers();
+      clearTimer(copiedTimerRef);
+      handlePreviewText?.();
+      handlePreviewAppend?.();
+      handlePreviewHold?.();
+      handlePreviewResult?.();
+      handlePreviewHide?.();
     };
+  }, [clearLifecycleTimers, showFinalResult]);
+
+  const handleCopy = useCallback(async () => {
+    const textToCopy = activeText.trim();
+    if (!textToCopy) return;
+
+    try {
+      const result = await window.electronAPI?.writeClipboard?.(textToCopy);
+      if (result?.success === false) throw new Error("clipboard-write-failed");
+      setCopied(true);
+      resetCopyState();
+      if (phaseRef.current === "final") startHideTimer(FINAL_HIDE_DURATION_MS);
+    } catch {
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        setCopied(true);
+        resetCopyState();
+        if (phaseRef.current === "final") startHideTimer(FINAL_HIDE_DURATION_MS);
+      } catch {
+        setCopied(false);
+      }
+    }
+  }, [activeText, resetCopyState, startHideTimer]);
+
+  const handleDismiss = useCallback(() => {
+    window.electronAPI?.dismissDictationPreview?.();
   }, []);
 
   if (!isVisible) {
-    return <div className="w-full h-full bg-transparent" />;
+    return <div className="h-full w-full bg-transparent" />;
   }
 
+  const statusLabel =
+    phase === "final"
+      ? t("transcriptionPreview.ready", { defaultValue: "Ready" })
+      : phase === "cleanup"
+        ? t("transcriptionPreview.polishing", { defaultValue: "Polishing..." })
+        : phase === "hold"
+          ? t("transcriptionPreview.captured", { defaultValue: "Captured" })
+          : t("transcriptionPreview.listening", { defaultValue: "Listening..." });
+
   return (
-    <div className="meeting-notification-window w-full h-full bg-transparent p-2">
+    <div className="meeting-notification-window h-full w-full bg-transparent p-2">
       <div
+        ref={shellRef}
         className={[
-          "bg-card/95 dark:bg-surface-2/95 backdrop-blur-xl",
-          "border border-border/40 dark:border-border-subtle/40",
-          "rounded-xl shadow-lg p-2.5",
+          "relative overflow-hidden rounded-xl border bg-card/92 p-3 backdrop-blur-xl",
+          "border-border/40 shadow-[0_8px_24px_rgba(0,0,0,0.14)]",
+          "dark:border-border-subtle/45 dark:bg-surface-2/92",
           "transition-all duration-200 ease-out",
           isVisible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
         ].join(" ")}
       >
-        <div className="flex items-start gap-2">
-          <div className="flex-1 min-w-0">
-            {text ? (
-              <p className="text-[12px] text-foreground leading-snug">{text}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 min-w-0">
+            {phase === "final" ? (
+              <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500/70" />
             ) : (
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                <p className="text-[11px] text-muted-foreground">Listening...</p>
-              </div>
+              <span
+                className={[
+                  "block h-1.5 w-1.5 shrink-0 rounded-full animate-pulse",
+                  phase === "cleanup"
+                    ? "bg-muted-foreground/40"
+                    : rawText
+                      ? "bg-primary/70"
+                      : "bg-muted-foreground/30",
+                ].join(" ")}
+              />
             )}
+            <span className="text-[12px] font-medium tracking-tight text-muted-foreground/70 truncate">
+              {statusLabel}
+            </span>
           </div>
-          <button
-            onClick={() => window.electronAPI?.stopDictationPreview?.()}
-            className="shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors p-0.5"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+
+          <div className="flex shrink-0 items-center gap-0.5">
+            {activeText ? (
+              <button
+                onClick={handleCopy}
+                className={[
+                  "inline-flex h-6 items-center gap-1 rounded-md border px-1.5 text-[11px] font-medium transition-colors",
+                  copied
+                    ? "border-emerald-500/15 text-emerald-500/70"
+                    : "border-border/30 text-muted-foreground/60 hover:border-border/50 hover:bg-background/40 hover:text-foreground/80",
+                ].join(" ")}
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied
+                  ? t("transcriptionPreview.copied", { defaultValue: "Copied" })
+                  : t("transcriptionPreview.copy", { defaultValue: "Copy" })}
+              </button>
+            ) : null}
+
+            <button
+              onClick={handleDismiss}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-background/40 hover:text-muted-foreground/70"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
         </div>
+
+        {activeText && (
+          <div className="relative mt-2">
+            {hasOverflow && (
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 rounded-t-lg bg-gradient-to-b from-background/60 to-transparent dark:from-surface-2/60" />
+            )}
+
+            <div
+              ref={textRef}
+              className={[
+                "preview-text-scroll rounded-lg border px-2.5 py-2 max-h-[220px] overflow-y-auto",
+                phase === "final"
+                  ? "border-emerald-500/10 bg-emerald-500/[0.03]"
+                  : "border-border/25 bg-background/30",
+              ].join(" ")}
+            >
+              <p className="select-text text-[13px] leading-[1.52] text-foreground whitespace-pre-wrap break-words [text-wrap:pretty]">
+                {activeText}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {phase === "cleanup" && (
+          <div
+            className={[
+              "h-px overflow-hidden rounded-full bg-muted-foreground/8",
+              activeText ? "mt-1.5" : "mt-2",
+            ].join(" ")}
+          >
+            <div
+              className="h-full w-1/4 rounded-full bg-muted-foreground/20"
+              style={{ animation: "indeterminate 1.4s ease-in-out infinite" }}
+            />
+          </div>
+        )}
+
+        {phase === "listening" && !rawText && (
+          <div className="mt-2 flex items-center gap-2 px-1 py-1">
+            <div className="flex items-end gap-[3px]">
+              {[8, 13, 10].map((h, i) => (
+                <span
+                  key={i}
+                  className="w-[2px] rounded-full bg-primary/35"
+                  style={{
+                    height: h,
+                    animation: "preview-bars 0.9s ease-in-out infinite",
+                    animationDelay: `${i * 0.12}s`,
+                  }}
+                />
+              ))}
+            </div>
+            <span className="text-[11px] text-muted-foreground/45">
+              {t("transcriptionPreview.waitingForInput", { defaultValue: "Say something..." })}
+            </span>
+          </div>
+        )}
       </div>
+
+      <style>{`
+        @keyframes preview-bars {
+          0%, 100% { transform: scaleY(0.7); opacity: 0.6; }
+          50% { transform: scaleY(1.3); opacity: 1; }
+        }
+        .preview-text-scroll::-webkit-scrollbar { display: none; }
+        .preview-text-scroll { scrollbar-width: none; }
+      `}</style>
     </div>
   );
 }

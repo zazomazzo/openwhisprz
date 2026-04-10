@@ -607,9 +607,22 @@ contextBridge.exposeInMainWorld("electronAPI", {
     "preview-append",
     (callback) => (_event, text) => callback(text)
   ),
+  onPreviewHold: registerListener(
+    "preview-hold",
+    (callback) => (_event, payload) => callback(payload)
+  ),
+  onPreviewResult: registerListener(
+    "preview-result",
+    (callback) => (_event, payload) => callback(payload)
+  ),
   onPreviewHide: registerListener("preview-hide", (callback) => () => callback()),
   startDictationPreview: (opts) => ipcRenderer.invoke("start-dictation-preview", opts),
-  stopDictationPreview: () => ipcRenderer.invoke("stop-dictation-preview"),
+  stopDictationPreview: (opts) => ipcRenderer.invoke("stop-dictation-preview", opts),
+  dismissDictationPreview: () => ipcRenderer.invoke("dismiss-dictation-preview"),
+  completeDictationPreview: (payload) => ipcRenderer.invoke("complete-dictation-preview", payload),
+  hideDictationPreview: () => ipcRenderer.invoke("hide-dictation-preview"),
+  resizeTranscriptionPreviewWindow: (width, height) =>
+    ipcRenderer.invoke("resize-transcription-preview-window", width, height),
   sendDictationPreviewAudio: (data) => ipcRenderer.send("dictation-preview-audio", data),
   acquireRecordingLock: (pipeline) => ipcRenderer.invoke("acquire-recording-lock", pipeline),
   releaseRecordingLock: (pipeline) => ipcRenderer.invoke("release-recording-lock", pipeline),

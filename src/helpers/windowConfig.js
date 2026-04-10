@@ -120,9 +120,18 @@ const NOTIFICATION_WINDOW_CONFIG = {
   type: FLOATING_OVERLAY_TYPE,
 };
 
+const TRANSCRIPTION_PREVIEW_SIZE_LIMITS = {
+  minWidth: 400,
+  defaultWidth: 460,
+  maxWidth: 640,
+  minHeight: 96,
+  defaultHeight: 132,
+  maxHeight: 520,
+};
+
 const TRANSCRIPTION_PREVIEW_CONFIG = {
-  width: 380,
-  height: 200,
+  width: TRANSCRIPTION_PREVIEW_SIZE_LIMITS.defaultWidth,
+  height: TRANSCRIPTION_PREVIEW_SIZE_LIMITS.defaultHeight,
   frame: false,
   transparent: true,
   alwaysOnTop: true,
@@ -174,9 +183,15 @@ class WindowPositionUtil {
     return { x, y, width, height };
   }
 
-  static getTranscriptionPreviewPosition(display, mainWindowBounds) {
-    const width = 380;
-    const height = 200;
+  static getTranscriptionPreviewPosition(display, mainWindowBounds, size = {}) {
+    const width =
+      size.width ||
+      TRANSCRIPTION_PREVIEW_CONFIG.width ||
+      TRANSCRIPTION_PREVIEW_SIZE_LIMITS.defaultWidth;
+    const height =
+      size.height ||
+      TRANSCRIPTION_PREVIEW_CONFIG.height ||
+      TRANSCRIPTION_PREVIEW_SIZE_LIMITS.defaultHeight;
     const GAP = 8;
     const workArea = display.workArea || display.bounds;
 
@@ -250,6 +265,7 @@ module.exports = {
   AGENT_OVERLAY_CONFIG,
   NOTIFICATION_WINDOW_CONFIG,
   TRANSCRIPTION_PREVIEW_CONFIG,
+  TRANSCRIPTION_PREVIEW_SIZE_LIMITS,
   WINDOW_SIZES,
   WindowPositionUtil,
 };

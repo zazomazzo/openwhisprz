@@ -344,7 +344,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this._silenceCtx = null;
         this._silenceAnalyser = null;
 
-        this.cleanupPreview();
+        this.cleanupPreview({ showCleanup: this.shouldShowPreviewCleanupState() });
 
         this.isRecording = false;
         this.isProcessing = true;
@@ -443,7 +443,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   cancelRecording() {
     if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
       this.mediaRecorder.onstop = () => {
-        this.cleanupPreview();
+        this.cleanupPreview({ dismiss: true });
         this.isRecording = false;
         this.isProcessing = false;
         this.audioChunks = [];
@@ -2560,7 +2560,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return true;
   }
 
-  cleanupPreview() {
+  shouldShowPreviewCleanupState() {
+    const settings = getSettings();
+    return !!settings.useReasoningModel && !this.skipReasoning;
+  }
+
+  cleanupPreview(options = {}) {
+    const { dismiss = false, showCleanup = false } = options;
+
     if (this._previewProcessor) {
       this._previewProcessor.port.postMessage("stop");
       this._previewProcessor.disconnect();
@@ -2574,7 +2581,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       this._previewAudioContext.close().catch(() => {});
       this._previewAudioContext = null;
     }
-    window.electronAPI?.stopDictationPreview?.();
+    if (dismiss) {
+      window.electronAPI?.dismissDictationPreview?.();
+      return;
+    }
+    window.electronAPI?.stopDictationPreview?.({ showCleanup });
   }
 
   cleanupStreamingAudio() {
