@@ -1306,6 +1306,14 @@ declare global {
           type: "partial" | "final";
         }) => void
       ) => () => void;
+      onMeetingSpeakerIdentified?: (
+        callback: (data: {
+          speakerId: string;
+          displayName?: string;
+          startTime: number;
+          endTime: number;
+        }) => void
+      ) => () => void;
       onMeetingTranscriptionError?: (callback: (error: string) => void) => () => void;
 
       // Speaker diarization

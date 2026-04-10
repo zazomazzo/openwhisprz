@@ -15,10 +15,13 @@ const SEGMENTATION_MODEL_URL =
   "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2";
 const EMBEDDING_MODEL_URL =
   "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx";
+const SILERO_VAD_MODEL_URL =
+  "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx";
 
 const SEGMENTATION_DIR = "sherpa-onnx-pyannote-segmentation-3-0";
 const SEGMENTATION_ONNX = path.join(SEGMENTATION_DIR, "model.onnx");
 const EMBEDDING_ONNX = "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx";
+const SILERO_VAD_ONNX = "silero_vad.onnx";
 
 class DiarizationManager {
   constructor() {
@@ -49,22 +52,52 @@ class DiarizationManager {
     return getModelsDirForService("diarization");
   }
 
+  getBundledModelsDir() {
+    if (!process.resourcesPath) {
+      return null;
+    }
+
+    return path.join(process.resourcesPath, "bin", "diarization-models");
+  }
+
+  _resolveModelPath(relativePath) {
+    const bundledModelsDir = this.getBundledModelsDir();
+    if (bundledModelsDir) {
+      const bundledPath = path.join(bundledModelsDir, relativePath);
+      if (fs.existsSync(bundledPath)) {
+        return bundledPath;
+      }
+    }
+
+    return path.join(this.getModelsDir(), relativePath);
+  }
+
   isModelDownloaded() {
-    const modelsDir = this.getModelsDir();
-    const segPath = path.join(modelsDir, SEGMENTATION_ONNX);
-    const embPath = path.join(modelsDir, EMBEDDING_ONNX);
+    const segPath = this._resolveModelPath(SEGMENTATION_ONNX);
+    const embPath = this._resolveModelPath(EMBEDDING_ONNX);
     return fs.existsSync(segPath) && fs.existsSync(embPath);
+  }
+
+  getVadModelPath() {
+    return this._resolveModelPath(SILERO_VAD_ONNX);
+  }
+
+  isVadModelDownloaded() {
+    return fs.existsSync(this.getVadModelPath());
   }
 
   async downloadModels(progressCallback = null) {
     const modelsDir = this.getModelsDir();
     await fsPromises.mkdir(modelsDir, { recursive: true });
 
-    if (this.isModelDownloaded()) {
+    const modelsReady = this.isModelDownloaded();
+    const vadReady = this.isVadModelDownloaded();
+
+    if (modelsReady && vadReady) {
       return { success: true, path: modelsDir };
     }
 
-    const requiredBytes = 35 * 1_000_000; // ~35MB total
+    const requiredBytes = modelsReady ? 2 * 1_000_000 : 37 * 1_000_000;
     const spaceCheck = await checkDiskSpace(modelsDir, requiredBytes * 2.5);
     if (!spaceCheck.ok) {
       throw new Error(
@@ -130,6 +163,34 @@ class DiarizationManager {
             }
           },
         });
+      }
+
+      if (!this.isVadModelDownloaded()) {
+        try {
+          await downloadFile(SILERO_VAD_MODEL_URL, this.getVadModelPath(), {
+            timeout: 600000,
+            signal,
+            onProgress: (downloadedBytes, totalBytes) => {
+              if (progressCallback) {
+                progressCallback({
+                  type: "progress",
+                  stage: "vad",
+                  downloaded_bytes: downloadedBytes,
+                  total_bytes: totalBytes,
+                  percentage: totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0,
+                });
+              }
+            },
+          });
+        } catch (error) {
+          if (error.isAbort) {
+            throw new Error("Download interrupted by user");
+          }
+          debugLogger.warn("Silero VAD model download failed", {
+            error: error.message,
+            modelsDir,
+          });
+        }
       }
 
       if (progressCallback) {
@@ -226,9 +287,8 @@ class DiarizationManager {
       return [];
     }
 
-    const modelsDir = this.getModelsDir();
-    const segPath = path.join(modelsDir, SEGMENTATION_ONNX);
-    const embPath = path.join(modelsDir, EMBEDDING_ONNX);
+    const segPath = this._resolveModelPath(SEGMENTATION_ONNX);
+    const embPath = this._resolveModelPath(EMBEDDING_ONNX);
 
     const args = [
       `--segmentation.pyannote-model=${segPath}`,
@@ -431,12 +491,16 @@ class DiarizationManager {
     const modelsDir = this.getModelsDir();
     const segDir = path.join(modelsDir, SEGMENTATION_DIR);
     const embPath = path.join(modelsDir, EMBEDDING_ONNX);
+    const vadPath = this.getVadModelPath();
 
     if (fs.existsSync(segDir)) {
       await fsPromises.rm(segDir, { recursive: true, force: true });
     }
     if (fs.existsSync(embPath)) {
       await fsPromises.unlink(embPath);
+    }
+    if (fs.existsSync(vadPath)) {
+      await fsPromises.unlink(vadPath);
     }
 
     debugLogger.info("Diarization models deleted", { modelsDir });

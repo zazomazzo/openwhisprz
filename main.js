@@ -685,7 +685,10 @@ async function startApp() {
   }
 
   // Auto-download diarization models if binary is available
-  if (diarizationManager.getBinaryPath() && !diarizationManager.isModelDownloaded()) {
+  if (
+    diarizationManager.getBinaryPath() &&
+    (!diarizationManager.isModelDownloaded() || !diarizationManager.isVadModelDownloaded())
+  ) {
     diarizationManager.downloadModels().catch((err) => {
       debugLogger.debug("Diarization model auto-download error (non-fatal)", {
         error: err.message,

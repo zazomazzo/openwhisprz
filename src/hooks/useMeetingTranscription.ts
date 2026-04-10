@@ -32,6 +32,7 @@ const MEETING_AUDIO_BUFFER_SIZE = 800;
 const MEETING_STOP_FLUSH_TIMEOUT_MS = 50;
 
 const REALTIME_MODELS = new Set(["gpt-4o-mini-transcribe", "gpt-4o-transcribe"]);
+const SPEAKER_IDENTIFICATION_RETENTION_MS = 30_000;
 
 const getMeetingTranscriptionOptions = () => {
   const {
@@ -256,6 +257,31 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
   const preparePromiseRef = useRef<Promise<void> | null>(null);
   const ipcCleanupsRef = useRef<Array<() => void>>([]);
   const pendingCleanupRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speakerIdentificationsRef = useRef<
+    Array<{ speakerId: string; displayName?: string; startTime: number; endTime: number }>
+  >([]);
+
+  const applySpeakerIdentification = useCallback(
+    (
+      segment: TranscriptSegment,
+      identification: { speakerId: string; displayName?: string; startTime: number; endTime: number }
+    ): TranscriptSegment => {
+      if (segment.source !== "system" || segment.timestamp == null) {
+        return segment;
+      }
+
+      if (segment.timestamp < identification.startTime || segment.timestamp > identification.endTime) {
+        return segment;
+      }
+
+      return {
+        ...segment,
+        speaker: identification.speakerId,
+        speakerName: identification.displayName ?? segment.speakerName,
+      };
+    },
+    []
+  );
 
   const cleanup = useCallback(async () => {
     await flushAndDisconnectProcessor(micProcessorRef.current);
@@ -361,6 +387,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
     setMicPartial("");
     setSystemPartial("");
     setError(null);
+    speakerIdentificationsRef.current = [];
 
     // Set recording state immediately for instant UI feedback
     isRecordingRef.current = true;
@@ -450,12 +477,13 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
             setPartialForSource(data.text);
             setPartialTranscript(data.text);
           } else {
-            const seg: TranscriptSegment = {
+            const rawSegment: TranscriptSegment = {
               id: `seg-${++segmentCounter}`,
               text: data.text,
               source: data.source,
               timestamp: data.timestamp,
             };
+            const seg = speakerIdentificationsRef.current.reduce(applySpeakerIdentification, rawSegment);
             setSegments((prev) => {
               // Insert in chronological order — scan from the end since most
               // segments arrive in order and this is O(1) in the common case.
@@ -472,6 +500,20 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
         }
       );
       if (segmentCleanup) ipcCleanupsRef.current.push(segmentCleanup);
+
+      const speakerCleanup = window.electronAPI?.onMeetingSpeakerIdentified?.((data) => {
+        speakerIdentificationsRef.current = [
+          ...speakerIdentificationsRef.current.filter(
+            (identification) => identification.endTime >= data.endTime - SPEAKER_IDENTIFICATION_RETENTION_MS
+          ),
+          data,
+        ];
+
+        setSegments((prev) =>
+          prev.map((segment) => applySpeakerIdentification(segment, data))
+        );
+      });
+      if (speakerCleanup) ipcCleanupsRef.current.push(speakerCleanup);
 
       const errorCleanup = window.electronAPI?.onMeetingTranscriptionError?.((err) => {
         setError(err);
@@ -564,7 +606,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
       setIsRecording(false);
       await cleanup();
     }
-  }, [cleanup]);
+  }, [applySpeakerIdentification, cleanup]);
 
   useEffect(() => {
     getMeetingWorkletBlobUrl();

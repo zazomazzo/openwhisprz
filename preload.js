@@ -514,6 +514,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     "meeting-transcription-segment",
     (callback) => (_event, data) => callback(data)
   ),
+  onMeetingSpeakerIdentified: registerListener(
+    "meeting-speaker-identified",
+    (callback) => (_event, data) => callback(data)
+  ),
   onMeetingTranscriptionError: registerListener(
     "meeting-transcription-error",
     (callback) => (_event, data) => callback(data)
