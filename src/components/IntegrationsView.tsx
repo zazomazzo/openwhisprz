@@ -46,7 +46,7 @@ export default function IntegrationsView() {
       }
     }
     await startOAuth();
-  }, [needsSystemAudioGrant, startOAuth, systemAudio]);
+  }, [needsSystemAudioGrant, startOAuth, systemAudio.request]);
 
   const handleDisconnect = useCallback(
     async (email: string) => {
