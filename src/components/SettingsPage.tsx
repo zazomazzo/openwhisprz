@@ -2795,7 +2795,7 @@ EOF`,
                       desc: t("settingsPage.general.waylandPaste.xclipDesc", {
                         defaultValue: "Clipboard tool for KDE Wayland paste (xclip or xsel)",
                       }),
-                      guide: [
+                      steps: [
                         {
                           title: t("settingsPage.general.waylandPaste.guide.xclip.step1Title", {
                             defaultValue: "Install xclip",
@@ -2981,17 +2981,19 @@ EOF`,
                     disabled={isHotkeyRegistering}
                     validate={validateDictationHotkey}
                   />
-                  {effectiveDefaultHotkey && dictationKey && dictationKey !== effectiveDefaultHotkey && (
-                    <button
-                      onClick={() => registerHotkey(effectiveDefaultHotkey)}
-                      disabled={isHotkeyRegistering}
-                      className="mt-2 text-xs text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
-                    >
-                      {t("settingsPage.general.hotkey.resetToDefault", {
-                        hotkey: formatHotkeyLabel(effectiveDefaultHotkey),
-                      })}
-                    </button>
-                  )}
+                  {effectiveDefaultHotkey &&
+                    dictationKey &&
+                    dictationKey !== effectiveDefaultHotkey && (
+                      <button
+                        onClick={() => registerHotkey(effectiveDefaultHotkey)}
+                        disabled={isHotkeyRegistering}
+                        className="mt-2 text-xs text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
+                      >
+                        {t("settingsPage.general.hotkey.resetToDefault", {
+                          hotkey: formatHotkeyLabel(effectiveDefaultHotkey),
+                        })}
+                      </button>
+                    )}
                 </SettingsPanelRow>
 
                 {!isUsingNativeShortcut && (

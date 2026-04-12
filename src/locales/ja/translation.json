@@ -251,6 +251,9 @@
       "failedCtaSettings": "文字起こしプロバイダーを設定してください",
       "failedCtaAndRetry": "その後、再試行をクリックしてください",
       "failedCtaSettingsOnly": "設定で文字起こしプロバイダーを設定してください",
+      "failedCtaSignIn": "もう一度サインインしてください",
+      "failedLimitReached": "1日の上限に達しました",
+      "failedOffline": "オフラインです",
       "clearAll": "すべて削除",
       "clearAllTitle": "すべての文字起こしを削除",
       "clearAllDescription": "すべての文字起こしと音声ファイルが完全に削除されます。",
@@ -2103,6 +2106,12 @@
     "conversationSelector": "会話を切り替え"
   },
   "transcriptionPreview": {
-    "label": "プレビュー"
+    "label": "プレビュー",
+    "listening": "聞き取り中...",
+    "polishing": "整えています...",
+    "ready": "準備完了",
+    "copy": "コピー",
+    "copied": "コピー済み",
+    "waitingForInput": "何か話してください..."
   }
 }

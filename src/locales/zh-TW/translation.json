@@ -2101,6 +2101,12 @@
     "conversationSelector": "切換對話"
   },
   "transcriptionPreview": {
-    "label": "預覽"
+    "label": "預覽",
+    "listening": "正在聆聽...",
+    "polishing": "正在潤飾...",
+    "ready": "就緒",
+    "copy": "複製",
+    "copied": "已複製",
+    "waitingForInput": "說點什麼..."
   }
 }

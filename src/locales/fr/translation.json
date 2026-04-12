@@ -2106,6 +2106,12 @@
     "conversationSelector": "Changer de conversation"
   },
   "transcriptionPreview": {
-    "label": "Aperçu"
+    "label": "Aperçu",
+    "listening": "Écoute...",
+    "polishing": "Finalisation...",
+    "ready": "Prêt",
+    "copy": "Copier",
+    "copied": "Copié",
+    "waitingForInput": "Dites quelque chose..."
   }
 }

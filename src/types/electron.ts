@@ -334,7 +334,11 @@ declare global {
       saveTranscription: (
         text: string,
         rawText?: string | null,
-        options?: { status?: TranscriptionStatus; errorMessage?: string | null }
+        options?: {
+          status?: TranscriptionStatus;
+          errorMessage?: string | null;
+          errorCode?: TranscriptionErrorCode;
+        }
       ) => Promise<{ id: number; success: boolean; transcription?: TranscriptionItem }>;
       getTranscriptions: (limit?: number) => Promise<TranscriptionItem[]>;
       clearTranscriptions: () => Promise<{ cleared: number; success: boolean }>;
@@ -365,7 +369,12 @@ declare global {
           parakeetModel: string;
           whisperModel: string;
         }
-      ) => Promise<{ success: boolean; transcription?: TranscriptionItem; error?: string }>;
+      ) => Promise<{
+        success: boolean;
+        transcription?: TranscriptionItem;
+        error?: string;
+        code?: TranscriptionErrorCode;
+      }>;
       updateTranscriptionText: (
         id: number,
         text: string,

@@ -2106,6 +2106,12 @@
     "conversationSelector": "Сменить беседу"
   },
   "transcriptionPreview": {
-    "label": "Предпросмотр"
+    "label": "Предпросмотр",
+    "listening": "Слушаю...",
+    "polishing": "Полирую...",
+    "ready": "Готово",
+    "copy": "Копировать",
+    "copied": "Скопировано",
+    "waitingForInput": "Скажите что-нибудь..."
   }
 }
