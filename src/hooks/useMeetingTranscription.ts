@@ -3,6 +3,7 @@ import { getSettings } from "../stores/settingsStore";
 import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
 import logger from "../utils/logger";
 import {
+  lockTranscriptSpeaker,
   normalizeTranscriptSegment,
   type TranscriptSpeakerLockSource,
   type TranscriptSpeakerStatus,
@@ -49,8 +50,12 @@ interface UseMeetingTranscriptionReturn {
   error: string | null;
   diarizationSessionId: string | null;
   prepareTranscription: () => Promise<void>;
-  startTranscription: (_options?: { allowSystemAudio?: boolean }) => Promise<void>;
+  startTranscription: (_options?: {
+    allowSystemAudio?: boolean;
+    seedSegments?: TranscriptSegment[];
+  }) => Promise<void>;
   stopTranscription: () => Promise<void>;
+  lockSpeaker: (speakerId: string, displayName: string) => void;
 }
 
 const MEETING_AUDIO_BUFFER_SIZE = 800;
@@ -304,6 +309,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
   const nextPlaceholderSpeakerIndexRef = useRef(0);
   const systemPartialSpeakerIdRef = useRef<string | null>(null);
   const recentSystemSpeakerRef = useRef<RecentSystemSpeaker | null>(null);
+  const speakerLocksRef = useRef<Map<string, string>>(new Map());
 
   const setSystemPartialSpeakerIdentity = useCallback(
     (speakerId: string | null, speakerName: string | null) => {
@@ -535,22 +541,33 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
   }, []);
 
   const startTranscription = useCallback(
-    async (_options?: { allowSystemAudio?: boolean }) => {
+    async (_options?: { allowSystemAudio?: boolean; seedSegments?: TranscriptSegment[] }) => {
       if (isRecordingRef.current || isStartingRef.current) return;
       isStartingRef.current = true;
 
       logger.info("Meeting transcription starting...", {}, "meeting");
-      setTranscript("");
+      const seed = _options?.seedSegments ?? [];
+      const locks = new Map<string, string>();
+      let maxSpeakerIndex = -1;
+      for (const s of seed) {
+        const idx = getSpeakerNumericIndex(s.speaker);
+        if (idx != null && idx > maxSpeakerIndex) maxSpeakerIndex = idx;
+        if (s.speakerLocked && s.speaker && s.speakerName) {
+          locks.set(s.speaker, s.speakerName);
+        }
+      }
+      setTranscript(seed.map((s) => s.text).join(" "));
       setPartialTranscript("");
-      setSegments([]);
-      segmentsRef.current = [];
+      setSegments(seed);
+      segmentsRef.current = seed;
       setMicPartial("");
       setSystemPartial("");
       setSystemPartialSpeakerIdentity(null, null);
       setError(null);
       speakerIdentificationsRef.current = [];
-      nextPlaceholderSpeakerIndexRef.current = 0;
+      nextPlaceholderSpeakerIndexRef.current = maxSpeakerIndex + 1;
       recentSystemSpeakerRef.current = null;
+      speakerLocksRef.current = locks;
 
       isRecordingRef.current = true;
       setIsRecording(true);
@@ -671,8 +688,19 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
                 );
               }
 
-              const seg = assignProvisionalSpeaker(rawSegment);
-              reserveSpeakerIndex(seg.speaker);
+              const provisional = assignProvisionalSpeaker(rawSegment);
+              reserveSpeakerIndex(provisional.speaker);
+              const lockedName = provisional.speaker
+                ? speakerLocksRef.current.get(provisional.speaker)
+                : undefined;
+              const seg = lockedName
+                ? lockTranscriptSpeaker(provisional, {
+                    speakerName: lockedName,
+                    speakerIsPlaceholder: false,
+                    suggestedName: undefined,
+                    suggestedProfileId: undefined,
+                  })
+                : provisional;
               setSegments((prev) => {
                 const ts = seg.timestamp ?? Infinity;
                 let i = prev.length;
@@ -819,6 +847,39 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
     ]
   );
 
+  const lockSpeaker = useCallback(
+    (speakerId: string, displayName: string) => {
+      if (!speakerId || !displayName) return;
+      speakerLocksRef.current.set(speakerId, displayName);
+      setSegments((prev) => {
+        const next = prev.map((s) =>
+          s.speaker === speakerId
+            ? lockTranscriptSpeaker(s, {
+                speakerName: displayName,
+                speakerIsPlaceholder: false,
+                suggestedName: undefined,
+                suggestedProfileId: undefined,
+              })
+            : s
+        );
+        segmentsRef.current = next;
+        return next;
+      });
+      const recent = recentSystemSpeakerRef.current;
+      if (recent?.speakerId === speakerId) {
+        recentSystemSpeakerRef.current = {
+          ...recent,
+          speakerName: displayName,
+          speakerIsPlaceholder: false,
+        };
+      }
+      if (systemPartialSpeakerIdRef.current === speakerId) {
+        setSystemPartialSpeakerIdentity(speakerId, displayName);
+      }
+    },
+    [setSystemPartialSpeakerIdentity]
+  );
+
   useEffect(() => {
     getMeetingWorkletBlobUrl();
   }, []);
@@ -851,5 +912,6 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
     prepareTranscription,
     startTranscription,
     stopTranscription,
+    lockSpeaker,
   };
 }

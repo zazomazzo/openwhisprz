@@ -45,6 +45,7 @@ import { cn } from "../lib/utils";
 import { MEETINGS_FOLDER_NAME, findDefaultFolder } from "./shared";
 import logger from "../../utils/logger";
 import { parseTranscriptSegments } from "../../utils/parseTranscriptSegments";
+import { serializeTranscriptSegments } from "../../utils/transcriptSpeakerState";
 import {
   useNotes,
   useActiveNoteId,
@@ -122,6 +123,7 @@ export default function PersonalNotesView({
     prepareTranscription,
     startTranscription,
     stopTranscription,
+    lockSpeaker,
   } = useMeetingTranscription();
   const recordingNoteIdRef = useRef<number | null>(null);
 
@@ -171,8 +173,10 @@ export default function PersonalNotesView({
   const startRecording = useCallback(async () => {
     isMeetingModeRef.current = false;
     recordingNoteIdRef.current = activeNoteRef.current;
-    await startTranscription({ allowSystemAudio: true });
-  }, [startTranscription]);
+    const note = notes.find((n) => n.id === activeNoteRef.current);
+    const seedSegments = note?.transcript ? parseTranscriptSegments(note.transcript) : [];
+    await startTranscription({ allowSystemAudio: true, seedSegments });
+  }, [notes, startTranscription]);
 
   const stopRecording = useCallback(async () => {
     await stopTranscription();
@@ -461,9 +465,17 @@ export default function PersonalNotesView({
     if (!meetingRecordingRequest || activeNoteId !== meetingRecordingRequest.noteId) return;
     recordingNoteIdRef.current = meetingRecordingRequest.noteId;
     isMeetingModeRef.current = true;
-    startTranscription({ allowSystemAudio: false });
+    const note = notes.find((n) => n.id === meetingRecordingRequest.noteId);
+    const seedSegments = note?.transcript ? parseTranscriptSegments(note.transcript) : [];
+    startTranscription({ allowSystemAudio: false, seedSegments });
     onMeetingRecordingRequestHandled?.();
-  }, [meetingRecordingRequest, activeNoteId, startTranscription, onMeetingRecordingRequestHandled]);
+  }, [
+    meetingRecordingRequest,
+    activeNoteId,
+    notes,
+    startTranscription,
+    onMeetingRecordingRequestHandled,
+  ]);
 
   const prevTranscribingRef = useRef(false);
 
@@ -475,9 +487,7 @@ export default function PersonalNotesView({
     ) {
       const transcript =
         realtimeSegments.length > 0
-          ? JSON.stringify(
-              realtimeSegments.map(({ text, source, timestamp }) => ({ text, source, timestamp }))
-            )
+          ? serializeTranscriptSegments(realtimeSegments)
           : realtimeTranscript;
 
       const noteId = recordingNoteIdRef.current;
@@ -893,6 +903,7 @@ export default function PersonalNotesView({
                 isActiveNoteRecording ? systemPartialSpeakerName : undefined
               }
               onStopMeetingRecording={stopTranscription}
+              onLiveSpeakerLock={lockSpeaker}
               liveTranscript={isActiveNoteRecording ? realtimeTranscript : ""}
               folderName={activeFolderName}
               calendarEventName={calendarEventName}

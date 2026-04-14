@@ -92,6 +92,7 @@ interface NoteEditorProps {
   meetingSystemPartialSpeakerId?: string | null;
   meetingSystemPartialSpeakerName?: string | null;
   onStopMeetingRecording?: () => void;
+  onLiveSpeakerLock?: (speakerId: string, displayName: string) => void;
   liveTranscript?: string;
   folderName?: string | null;
   calendarEventName?: string | null;
@@ -123,6 +124,7 @@ export default function NoteEditor({
   meetingSystemPartialSpeakerId,
   meetingSystemPartialSpeakerName,
   onStopMeetingRecording,
+  onLiveSpeakerLock,
   liveTranscript,
   folderName,
   calendarEventName,
@@ -380,7 +382,8 @@ export default function NoteEditor({
         profileId
       );
 
-      if (isMeetingRecording) {
+      if (isRecording) {
+        onLiveSpeakerLock?.(speakerId, displayName);
         refreshSpeakerProfiles();
         return;
       }
@@ -404,7 +407,9 @@ export default function NoteEditor({
       diarizedSegments,
       displaySegments,
       isMeetingRecording,
+      isRecording,
       note.id,
+      onLiveSpeakerLock,
       persistDisplaySegments,
       refreshSpeakerProfiles,
     ]

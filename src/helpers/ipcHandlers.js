@@ -3415,6 +3415,7 @@ class IPCHandlers {
       }
 
       meetingTranscriptionStartInProgress = true;
+      this.meetingDetectionEngine?.setUserRecording(true);
       try {
         const systemAudioMode = getMeetingSystemAudioMode();
         meetingEchoLeakDetector.reset();
@@ -3473,6 +3474,7 @@ class IPCHandlers {
         return { success: true, systemAudioMode };
       } catch (error) {
         await rollbackMeetingTranscriptionStart();
+        this.meetingDetectionEngine?.setUserRecording(false);
         debugLogger.error("Meeting transcription start error", { error: error.message });
         return { success: false, error: error.message };
       } finally {
@@ -3543,6 +3545,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("meeting-transcription-stop", async () => {
+      this.meetingDetectionEngine?.setUserRecording(false);
       try {
         if (this.audioTapManager) {
           await this.audioTapManager.stop();
