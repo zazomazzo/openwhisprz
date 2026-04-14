@@ -334,7 +334,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       return;
     }
 
-    // Signed-in users have permissions folded into the "setup" step.
     const currentStepId = steps[currentStep]?.id;
     const isPermissionsGate =
       currentStepId === "permissions" || (currentStepId === "setup" && isSignedIn && !skipAuth);

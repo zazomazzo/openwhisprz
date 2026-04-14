@@ -7,11 +7,7 @@ export function areRequiredPermissionsMet(micGranted: boolean): boolean {
   return true;
 }
 
-/**
- * localStorage flag recording that the user chose to proceed without macOS
- * Accessibility. Suppresses the nag toast and enables silent clipboard
- * fallback on paste. Cleared automatically when accessibility is later granted.
- */
+/** Set when the user proceeds past macOS Accessibility without granting. Silences the nag and enables clipboard-only paste. */
 export const ACCESSIBILITY_SKIPPED_KEY = "accessibilitySkipped";
 
 export function isAccessibilitySkipped(): boolean {
