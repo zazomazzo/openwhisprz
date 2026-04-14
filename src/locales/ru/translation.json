@@ -1095,17 +1095,17 @@
       "enableTextCleanup": "Включить очистку текста",
       "enableTextCleanupDescription": "ИИ улучшает качество транскрипции",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Облачные провайдеры",
         "local": "Локально",
         "selfHosted": "Свой сервер",
-        "openwhisprDesc": "Работает сразу. Без настройки.",
+        "openwhisprDesc": "Надёжные результаты. Без настройки.",
         "providersDesc": "Используйте свой API-ключ.",
         "localDesc": "Модели на устройстве. Полная приватность.",
         "selfHostedDesc": "Свой сервер в вашей сети."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "Просто работает. Настройка не требуется.",
+      "openwhisprCloudDescription": "Надёжные результаты. Без настройки.",
       "title": "ИИ-улучшение текста",
       "toasts": {
         "switchedCloud": {
@@ -1408,17 +1408,17 @@
       "customSetupDescription": "Используйте собственного провайдера и API-ключ.",
       "description": "Выберите, как OpenWhispr будет транскрибировать вашу речь",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Облачные провайдеры",
         "local": "Локально",
         "selfHosted": "Свой сервер",
-        "openwhisprDesc": "Работает сразу. Без настройки.",
+        "openwhisprDesc": "Надёжные результаты. Без настройки.",
         "providersDesc": "Используйте свой API-ключ.",
         "localDesc": "Модели на устройстве. Полная приватность.",
         "selfHostedDesc": "Свой сервер в вашей сети."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "Просто работает. Настройка не требуется.",
+      "openwhisprCloudDescription": "Надёжные результаты. Без настройки.",
       "title": "Распознавание речи",
       "toasts": {
         "switchedCloud": {
@@ -1976,17 +1976,17 @@
       "systemPromptDescription": "Пользовательские инструкции для агента",
       "systemPromptPlaceholder": "Введите пользовательский системный промпт...",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Облачные провайдеры",
         "local": "Локально",
         "selfHosted": "Свой сервер",
-        "openwhisprDesc": "Просто работает. Настройка не нужна.",
+        "openwhisprDesc": "Надёжные результаты. Без настройки.",
         "providersDesc": "Свой API-ключ.",
         "localDesc": "Модели на устройстве. Полная приватность.",
         "selfHostedDesc": "Ваш сервер в вашей сети."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "Использовать облачный ИИ OpenWhispr для разговоров с агентом",
+      "openwhisprCloudDescription": "Надёжные результаты. Без настройки.",
       "customSetup": "Своя настройка (BYOK)",
       "customSetupDescription": "Используйте собственные API-ключи и выберите предпочтительную модель"
     },

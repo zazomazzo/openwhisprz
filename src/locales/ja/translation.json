@@ -1095,17 +1095,17 @@
       "enableTextCleanup": "テキスト補正を有効にする",
       "enableTextCleanupDescription": "AI が文字起こしの品質を向上",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "クラウドプロバイダー",
         "local": "ローカル",
         "selfHosted": "セルフホスト",
-        "openwhisprDesc": "設定不要ですぐ使える。",
+        "openwhisprDesc": "信頼できる精度。設定不要。",
         "providersDesc": "自分のAPIキーを使用。",
         "localDesc": "端末上のモデル。完全プライベート。",
         "selfHostedDesc": "自前サーバーをネットワーク上に。"
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "設定不要ですぐに使えます。",
+      "openwhisprCloudDescription": "信頼できる精度。設定不要。",
       "title": "AI テキスト補正",
       "toasts": {
         "switchedCloud": {
@@ -1408,17 +1408,17 @@
       "customSetupDescription": "独自のプロバイダーと API キーを使用。",
       "description": "OpenWhispr の音声文字起こし方法を選択",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "クラウドプロバイダー",
         "local": "ローカル",
         "selfHosted": "セルフホスト",
-        "openwhisprDesc": "設定不要ですぐ使える。",
+        "openwhisprDesc": "信頼できる精度。設定不要。",
         "providersDesc": "自分のAPIキーを使用。",
         "localDesc": "端末上のモデル。完全プライベート。",
         "selfHostedDesc": "自前サーバーをネットワーク上に。"
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "設定不要ですぐに使えます。",
+      "openwhisprCloudDescription": "信頼できる精度。設定不要。",
       "title": "音声テキスト変換",
       "toasts": {
         "switchedCloud": {
@@ -1976,17 +1976,17 @@
       "systemPromptDescription": "エージェントへのカスタム指示",
       "systemPromptPlaceholder": "カスタムシステムプロンプトを入力...",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "クラウドプロバイダー",
         "local": "ローカル",
         "selfHosted": "セルフホスト",
-        "openwhisprDesc": "設定不要ですぐに使えます。",
+        "openwhisprDesc": "信頼できる精度。設定不要。",
         "providersDesc": "独自のAPIキーを使用。",
         "localDesc": "デバイス上のモデル。完全プライベート。",
         "selfHostedDesc": "ネットワーク上の自分のサーバー。"
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "OpenWhisprのクラウドAIをエージェント会話に使用する",
+      "openwhisprCloudDescription": "信頼できる精度。設定不要。",
       "customSetup": "カスタム設定 (BYOK)",
       "customSetupDescription": "自分のAPIキーを使用してお好みのモデルを選択する"
     },

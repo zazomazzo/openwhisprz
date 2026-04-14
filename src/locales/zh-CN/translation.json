@@ -1004,12 +1004,7 @@
           "annualEquivalent": "$16.67",
           "includesPrefix": "所有 Pro 功能 +",
           "badge": "最受欢迎",
-          "features": [
-            "无限会议录制",
-            "代理模式",
-            "与您的数据对话（即将推出）",
-            "优先支持"
-          ],
+          "features": ["无限会议录制", "代理模式", "与您的数据对话（即将推出）", "优先支持"],
           "cta": "开始使用",
           "switchToAnnual": "切换为年付"
         },
@@ -1095,17 +1090,17 @@
       "enableTextCleanup": "启用文本整理",
       "enableTextCleanupDescription": "AI 提升转录质量",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "云服务商",
         "local": "本地",
         "selfHosted": "自托管",
-        "openwhisprDesc": "开箱即用，无需设置。",
+        "openwhisprDesc": "准确可靠，无需设置。",
         "providersDesc": "使用你自己的 API Key。",
         "localDesc": "设备端模型，完全私密。",
         "selfHostedDesc": "你的服务器，在你的网络上。"
       },
-      "openwhisprCloud": "OpenWhispr 云端",
-      "openwhisprCloudDescription": "开箱即用，无需配置。",
+      "openwhisprCloud": "OpenWhispr Cloud",
+      "openwhisprCloudDescription": "准确可靠，无需设置。",
       "title": "AI 文本增强",
       "toasts": {
         "switchedCloud": {
@@ -1408,17 +1403,17 @@
       "customSetupDescription": "使用你自己的服务商和 API Key。",
       "description": "选择 OpenWhispr 转录语音的方式",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "云服务商",
         "local": "本地",
         "selfHosted": "自托管",
-        "openwhisprDesc": "开箱即用，无需设置。",
+        "openwhisprDesc": "准确可靠，无需设置。",
         "providersDesc": "使用你自己的 API Key。",
         "localDesc": "设备端模型，完全私密。",
         "selfHostedDesc": "你的服务器，在你的网络上。"
       },
-      "openwhisprCloud": "OpenWhispr 云端",
-      "openwhisprCloudDescription": "开箱即用，无需配置。",
+      "openwhisprCloud": "OpenWhispr Cloud",
+      "openwhisprCloudDescription": "准确可靠，无需设置。",
       "title": "语音转文字",
       "toasts": {
         "switchedCloud": {
@@ -1976,17 +1971,17 @@
       "systemPromptDescription": "助手的自定义指令",
       "systemPromptPlaceholder": "输入自定义系统提示词...",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "云服务商",
         "local": "本地",
         "selfHosted": "自托管",
-        "openwhisprDesc": "开箱即用，无需设置。",
+        "openwhisprDesc": "准确可靠，无需设置。",
         "providersDesc": "使用自己的 API 密钥。",
         "localDesc": "设备端模型，完全私密。",
         "selfHostedDesc": "你自己网络上的服务器。"
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "使用 OpenWhispr 的云端 AI 进行助手对话",
+      "openwhisprCloudDescription": "准确可靠，无需设置。",
       "customSetup": "自定义配置 (BYOK)",
       "customSetupDescription": "使用自己的 API 密钥并选择偏好的模型"
     },

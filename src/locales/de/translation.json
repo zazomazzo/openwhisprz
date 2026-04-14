@@ -1095,17 +1095,17 @@
       "enableTextCleanup": "Textbereinigung aktivieren",
       "enableTextCleanupDescription": "KI verbessert die Transkriptionsqualität",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Cloud-Anbieter",
         "local": "Lokal",
         "selfHosted": "Selbst gehostet",
-        "openwhisprDesc": "Sofort einsatzbereit.",
+        "openwhisprDesc": "Zuverlässige Ergebnisse. Keine Einrichtung nötig.",
         "providersDesc": "Eigenen API-Schlüssel nutzen.",
         "localDesc": "Modelle auf dem Gerät. Voll privat.",
         "selfHostedDesc": "Eigener Server in Ihrem Netzwerk."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "Funktioniert sofort. Keine Konfiguration nötig.",
+      "openwhisprCloudDescription": "Zuverlässige Ergebnisse. Keine Einrichtung nötig.",
       "title": "KI-Textverbesserung",
       "toasts": {
         "switchedCloud": {
@@ -1408,17 +1408,17 @@
       "customSetupDescription": "Verwenden Sie Ihren eigenen Anbieter und API-Schlüssel.",
       "description": "Wählen Sie, wie OpenWhispr Ihre Stimme transkribiert",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Cloud-Anbieter",
         "local": "Lokal",
         "selfHosted": "Selbst gehostet",
-        "openwhisprDesc": "Sofort einsatzbereit.",
+        "openwhisprDesc": "Zuverlässige Ergebnisse. Keine Einrichtung nötig.",
         "providersDesc": "Eigenen API-Schlüssel nutzen.",
         "localDesc": "Modelle auf dem Gerät. Voll privat.",
         "selfHostedDesc": "Eigener Server in Ihrem Netzwerk."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "Funktioniert sofort. Keine Konfiguration nötig.",
+      "openwhisprCloudDescription": "Zuverlässige Ergebnisse. Keine Einrichtung nötig.",
       "title": "Sprache-zu-Text",
       "toasts": {
         "switchedCloud": {
@@ -1976,17 +1976,17 @@
       "systemPromptDescription": "Benutzerdefinierte Anweisungen für den Agenten",
       "systemPromptPlaceholder": "Benutzerdefinierten System-Prompt eingeben...",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Cloud-Anbieter",
         "local": "Lokal",
         "selfHosted": "Selbst gehostet",
-        "openwhisprDesc": "Funktioniert sofort. Keine Einrichtung nötig.",
+        "openwhisprDesc": "Zuverlässige Ergebnisse. Keine Einrichtung nötig.",
         "providersDesc": "Eigenen API-Schlüssel verwenden.",
         "localDesc": "Modelle auf dem Gerät. Vollständig privat.",
         "selfHostedDesc": "Eigener Server in Ihrem Netzwerk."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "OpenWhisprs Cloud-KI für Agent-Unterhaltungen verwenden",
+      "openwhisprCloudDescription": "Zuverlässige Ergebnisse. Keine Einrichtung nötig.",
       "customSetup": "Eigene Konfiguration (BYOK)",
       "customSetupDescription": "Eigene API-Schlüssel verwenden und bevorzugtes Modell auswählen"
     },

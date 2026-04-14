@@ -1143,17 +1143,17 @@
       "enableTextCleanup": "Enable text cleanup",
       "enableTextCleanupDescription": "AI improves transcription quality",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Cloud Providers",
         "local": "Local",
         "selfHosted": "Self-Hosted",
-        "openwhisprDesc": "Just works. No setup needed.",
+        "openwhisprDesc": "Reliable accuracy. No setup needed.",
         "providersDesc": "Bring your own API key.",
         "localDesc": "On-device models. Fully private.",
         "selfHostedDesc": "Your own server on your network."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "Just works. No configuration needed.",
+      "openwhisprCloudDescription": "Reliable accuracy. No setup needed.",
       "title": "AI Text Enhancement",
       "toasts": {
         "switchedCloud": {
@@ -1456,17 +1456,17 @@
       "customSetupDescription": "Use your own provider and API key.",
       "description": "Choose how OpenWhispr transcribes your voice",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Cloud Providers",
         "local": "Local",
         "selfHosted": "Self-Hosted",
-        "openwhisprDesc": "Just works. No setup needed.",
+        "openwhisprDesc": "Reliable accuracy. No setup needed.",
         "providersDesc": "Bring your own API key.",
         "localDesc": "On-device models. Fully private.",
         "selfHostedDesc": "Your own server on your network."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "Just works. No configuration needed.",
+      "openwhisprCloudDescription": "Reliable accuracy. No setup needed.",
       "title": "Speech to Text",
       "toasts": {
         "switchedCloud": {
@@ -2032,17 +2032,17 @@
       "systemPromptDescription": "Custom instructions for the agent",
       "systemPromptPlaceholder": "Enter custom system prompt...",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Cloud Providers",
         "local": "Local",
         "selfHosted": "Self-Hosted",
-        "openwhisprDesc": "Just works. No setup needed.",
+        "openwhisprDesc": "Reliable accuracy. No setup needed.",
         "providersDesc": "Bring your own API key.",
         "localDesc": "On-device models. Fully private.",
         "selfHostedDesc": "Your own server on your network."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "Use OpenWhispr's cloud AI for agent conversations",
+      "openwhisprCloudDescription": "Reliable accuracy. No setup needed.",
       "customSetup": "Custom Setup (BYOK)",
       "customSetupDescription": "Use your own API keys and choose your preferred model"
     },

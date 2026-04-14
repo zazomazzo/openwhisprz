@@ -1095,17 +1095,17 @@
       "enableTextCleanup": "Activar corrección de texto",
       "enableTextCleanupDescription": "La IA mejora la calidad de transcripción",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Proveedores en la nube",
         "local": "Local",
         "selfHosted": "Autoalojado",
-        "openwhisprDesc": "Funciona sin configurar nada.",
+        "openwhisprDesc": "Resultados fiables. Sin configuración.",
         "providersDesc": "Usa tu propia clave API.",
         "localDesc": "Modelos en el dispositivo. Privado.",
         "selfHostedDesc": "Tu servidor en tu red."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "Funciona de inmediato. Sin configuración necesaria.",
+      "openwhisprCloudDescription": "Resultados fiables. Sin configuración.",
       "title": "Mejora de texto con IA",
       "toasts": {
         "switchedCloud": {
@@ -1408,17 +1408,17 @@
       "customSetupDescription": "Usa tu propio proveedor y clave API.",
       "description": "Elige cómo OpenWhispr transcribe tu voz",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Proveedores en la nube",
         "local": "Local",
         "selfHosted": "Autoalojado",
-        "openwhisprDesc": "Funciona sin configurar nada.",
+        "openwhisprDesc": "Resultados fiables. Sin configuración.",
         "providersDesc": "Usa tu propia clave API.",
         "localDesc": "Modelos en el dispositivo. Privado.",
         "selfHostedDesc": "Tu servidor en tu red."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "Funciona de inmediato. Sin configuración necesaria.",
+      "openwhisprCloudDescription": "Resultados fiables. Sin configuración.",
       "title": "Voz a texto",
       "toasts": {
         "switchedCloud": {
@@ -1976,17 +1976,17 @@
       "systemPromptDescription": "Instrucciones personalizadas para el agente",
       "systemPromptPlaceholder": "Introduce un prompt de sistema personalizado...",
       "modes": {
-        "openwhispr": "OpenWhispr",
+        "openwhispr": "OpenWhispr Cloud",
         "providers": "Proveedores Cloud",
         "local": "Local",
         "selfHosted": "Autoalojado",
-        "openwhisprDesc": "Funciona de inmediato. Sin configuración.",
+        "openwhisprDesc": "Resultados fiables. Sin configuración.",
         "providersDesc": "Trae tu propia clave API.",
         "localDesc": "Modelos en el dispositivo. Totalmente privado.",
         "selfHostedDesc": "Tu propio servidor en tu red."
       },
       "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "Usar la IA en la nube de OpenWhispr para conversaciones del agente",
+      "openwhisprCloudDescription": "Resultados fiables. Sin configuración.",
       "customSetup": "Configuración personalizada (BYOK)",
       "customSetupDescription": "Usa tus propias claves API y elige tu modelo preferido"
     },
