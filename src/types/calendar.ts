@@ -19,6 +19,7 @@ export interface CalendarEvent {
   conference_data: string | null;
   organizer_email: string | null;
   attendees_count: number;
+  attendees: string | null;
 }
 
 export interface GoogleCalendarAccount {
@@ -44,4 +45,16 @@ export interface MeetingDetection {
     detectedAt: number;
   };
   imminentEvent?: CalendarEvent | null;
+}
+
+export interface CalendarAttendee {
+  email: string;
+  displayName: string | null;
+  responseStatus: "needsAction" | "declined" | "tentative" | "accepted" | null;
+  self: boolean;
+}
+
+export interface Contact {
+  email: string;
+  display_name: string | null;
 }

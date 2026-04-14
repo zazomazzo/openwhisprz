@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Home,
+  MessageSquare,
   NotebookPen,
   BookOpen,
   Upload,
@@ -20,7 +21,13 @@ import { getCachedPlatform } from "../utils/platform";
 
 const platform = getCachedPlatform();
 
-export type ControlPanelView = "home" | "personal-notes" | "dictionary" | "upload" | "integrations";
+export type ControlPanelView =
+  | "home"
+  | "chat"
+  | "personal-notes"
+  | "dictionary"
+  | "upload"
+  | "integrations";
 
 interface ControlPanelSidebarProps {
   activeView: ControlPanelView;
@@ -78,6 +85,7 @@ export default function ControlPanelSidebar({
     icon: React.ComponentType<{ size?: number; className?: string }>;
   }[] = [
     { id: "home", label: t("sidebar.home"), icon: Home },
+    { id: "chat", label: t("sidebar.chat"), icon: MessageSquare },
     { id: "personal-notes", label: t("sidebar.notes"), icon: NotebookPen },
     { id: "upload", label: t("sidebar.upload"), icon: Upload },
     { id: "dictionary", label: t("sidebar.dictionary"), icon: BookOpen },
@@ -95,7 +103,7 @@ export default function ControlPanelSidebar({
         <div className="px-2 pt-2 pb-1">
           <button
             onClick={onOpenSearch}
-            className="group flex items-center w-full h-7 px-2.5 rounded-md border border-border/25 dark:border-white/8 bg-foreground/3 dark:bg-white/3 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors gap-2 outline-none focus-visible:ring-1 focus-visible:ring-primary/30"
+            className="group flex items-center w-full h-7 px-2.5 rounded-md border border-border/70 dark:border-white/25 bg-transparent hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors gap-2 outline-none focus-visible:ring-1 focus-visible:ring-primary/30"
           >
             <Search size={11} className="text-muted-foreground/50 shrink-0" />
             <span className="flex-1 text-[11px] text-left text-muted-foreground/50">
@@ -130,9 +138,6 @@ export default function ControlPanelSidebar({
                   : "hover:bg-foreground/4 dark:hover:bg-white/4 active:bg-foreground/6"
               )}
             >
-              {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3.5 rounded-r-full bg-primary" />
-              )}
               <Icon
                 size={15}
                 className={cn(

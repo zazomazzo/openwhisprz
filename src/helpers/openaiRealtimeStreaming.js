@@ -20,12 +20,12 @@ class OpenAIRealtimeStreaming {
     this.pendingResolve = null;
     this.pendingReject = null;
     this.connectionTimeout = null;
-    this.closeResolve = null;
     this.isDisconnecting = false;
     this.audioBytesSent = 0;
     this.model = "gpt-4o-mini-transcribe";
     this.coldStartBuffer = [];
     this.coldStartBufferSize = 0;
+    this.speechStartedAt = null;
   }
 
   getFullTranscript() {
@@ -49,6 +49,7 @@ class OpenAIRealtimeStreaming {
     this.audioBytesSent = 0;
     this.coldStartBuffer = [];
     this.coldStartBufferSize = 0;
+    this.speechStartedAt = null;
 
     const url = "wss://api.openai.com/v1/realtime?intent=transcription";
     debugLogger.debug("OpenAI Realtime connecting", { model: this.model });
@@ -103,9 +104,6 @@ class OpenAIRealtimeStreaming {
           this.pendingReject = null;
           this.pendingResolve = null;
         }
-        if (this.closeResolve) {
-          this.closeResolve({ text: this.getFullTranscript() });
-        }
         this.cleanup();
         if (wasActive && !this.isDisconnecting) {
           this.onSessionEnd?.({ text: this.getFullTranscript() });
@@ -149,9 +147,9 @@ class OpenAIRealtimeStreaming {
                   },
                   turn_detection: {
                     type: "server_vad",
-                    threshold: 0.5,
+                    threshold: 0.3,
                     silence_duration_ms: 800,
-                    prefix_padding_ms: 300,
+                    prefix_padding_ms: 500,
                   },
                 },
               })
@@ -176,8 +174,11 @@ class OpenAIRealtimeStreaming {
         }
 
         case "conversation.item.input_audio_transcription.delta": {
-          this.currentPartial += event.delta || "";
-          this.onPartialTranscript?.(this.currentPartial);
+          const delta = event.delta || "";
+          if (delta) {
+            this.currentPartial += delta;
+            this.onPartialTranscript?.(this.currentPartial);
+          }
           break;
         }
 
@@ -187,17 +188,23 @@ class OpenAIRealtimeStreaming {
             this.completedSegments.push(transcript);
           }
           this.currentPartial = "";
-          const fullText = this.getFullTranscript();
-          this.onFinalTranscript?.(fullText);
-          debugLogger.debug("OpenAI Realtime turn completed", {
-            turnText: transcript.slice(0, 100),
-            totalLength: fullText.length,
-            segments: this.completedSegments.length,
-          });
+          const speechTimestamp = this.speechStartedAt || Date.now();
+          this.speechStartedAt = null;
+          if (transcript) {
+            const fullText = this.getFullTranscript();
+            this.onFinalTranscript?.(fullText, speechTimestamp);
+            debugLogger.debug("OpenAI Realtime turn completed", {
+              turnText: transcript.slice(0, 100),
+              totalLength: fullText.length,
+              segments: this.completedSegments.length,
+            });
+          }
           break;
         }
 
         case "input_audio_buffer.speech_started":
+          this.speechStartedAt = Date.now();
+          break;
         case "input_audio_buffer.speech_stopped":
         case "input_audio_buffer.committed":
           break;
@@ -349,7 +356,6 @@ class OpenAIRealtimeStreaming {
 
     this.isConnected = false;
     this.isConnecting = false;
-    this.closeResolve = null;
   }
 }
 

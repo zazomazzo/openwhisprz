@@ -86,6 +86,16 @@ class GoogleCalendarManager {
     return result;
   }
 
+  async revokeAllTokens() {
+    try {
+      const allTokens = this.databaseManager.getAllGoogleTokens();
+      await Promise.allSettled(allTokens.map((t) => this.oauth.revokeToken(t.access_token)));
+    } catch (err) {
+      debugLogger.error("Error revoking Google tokens", { error: err.message }, "gcal");
+    }
+    this.disconnect();
+  }
+
   disconnect(email) {
     if (email) {
       this.removeAccount(email);
@@ -217,6 +227,16 @@ class GoogleCalendarManager {
         conference_data: item.conferenceData ? JSON.stringify(item.conferenceData) : null,
         organizer_email: item.organizer?.email || null,
         attendees_count: item.attendees?.length || 0,
+        attendees: item.attendees
+          ? JSON.stringify(
+              item.attendees.map((a) => ({
+                email: a.email,
+                displayName: a.displayName || null,
+                responseStatus: a.responseStatus || null,
+                self: a.self || false,
+              }))
+            )
+          : null,
       });
     }
 
@@ -224,6 +244,17 @@ class GoogleCalendarManager {
     if (toRemove.length > 0) this.databaseManager.removeCalendarEvents(toRemove);
     if (data.nextSyncToken)
       this.databaseManager.updateCalendarSyncToken(calendar.id, data.nextSyncToken);
+
+    const contactsToUpsert = [];
+    for (const item of data.items || []) {
+      if (item.attendees) {
+        for (const a of item.attendees) {
+          if (a.email)
+            contactsToUpsert.push({ email: a.email, displayName: a.displayName || null });
+        }
+      }
+    }
+    if (contactsToUpsert.length > 0) this.databaseManager.upsertContacts(contactsToUpsert);
   }
 
   scheduleNextMeeting() {

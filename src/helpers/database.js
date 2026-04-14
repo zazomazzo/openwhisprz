@@ -67,6 +67,11 @@ class DatabaseManager {
       } catch (err) {
         if (!err.message.includes("duplicate column")) throw err;
       }
+      try {
+        this.db.exec("ALTER TABLE transcriptions ADD COLUMN error_code TEXT");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
 
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS custom_dictionary (
@@ -230,6 +235,30 @@ class DatabaseManager {
         "CREATE INDEX IF NOT EXISTS idx_agent_messages_conversation ON agent_messages(conversation_id)"
       );
 
+      try {
+        this.db.exec("ALTER TABLE agent_messages ADD COLUMN metadata TEXT");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+      try {
+        this.db.exec("ALTER TABLE agent_conversations ADD COLUMN archived_at DATETIME");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+      try {
+        this.db.exec("ALTER TABLE agent_conversations ADD COLUMN cloud_id TEXT");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+      try {
+        this.db.exec("ALTER TABLE agent_conversations ADD COLUMN note_id INTEGER");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+      this.db.exec(
+        "CREATE INDEX IF NOT EXISTS idx_agent_conversations_note ON agent_conversations(note_id)"
+      );
+
       const actionCount = this.db.prepare("SELECT COUNT(*) as count FROM actions").get();
       if (actionCount.count === 0) {
         this.db
@@ -239,7 +268,7 @@ class DatabaseManager {
           .run(
             "Generate Notes",
             "Clean up, structure, and enhance your notes",
-            "You are given the user's notes and/or a meeting transcript. If a meeting transcript is present, combine all inputs into clean, well-structured meeting notes in markdown — include key discussion points, decisions made, action items, and follow-ups. If only personal notes are provided, clean up grammar, improve structure, and format for readability. Preserve the user's intent and meaning. Do not include filler, small talk, or redundant information.",
+            "Transform the provided content into clean, well-structured notes in markdown. Preserve the user's intent and all substantive information. Remove filler, small talk, false starts, and redundant content. For personal notes, improve grammar and structure for readability. For meeting transcripts, extract key discussion points, decisions, action items, and follow-ups.",
             "sparkles",
             "notes.actions.builtin.generateNotes"
           );
@@ -253,7 +282,7 @@ class DatabaseManager {
         .run(
           "Generate Notes",
           "Clean up, structure, and enhance your notes",
-          "You are given the user's notes and/or a meeting transcript. If a meeting transcript is present, combine all inputs into clean, well-structured meeting notes in markdown — include key discussion points, decisions made, action items, and follow-ups. If only personal notes are provided, clean up grammar, improve structure, and format for readability. Preserve the user's intent and meaning. Do not include filler, small talk, or redundant information.",
+          "Transform the provided content into clean, well-structured notes in markdown. Preserve the user's intent and all substantive information. Remove filler, small talk, false starts, and redundant content. For personal notes, improve grammar and structure for readability. For meeting transcripts, extract key discussion points, decisions, action items, and follow-ups.",
           "notes.actions.builtin.generateNotes",
           "notes.actions.builtin.generateNotes"
         );
@@ -339,6 +368,26 @@ class DatabaseManager {
         if (!err.message.includes("duplicate column")) throw err;
       }
 
+      try {
+        this.db.exec("ALTER TABLE calendar_events ADD COLUMN attendees TEXT");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+      try {
+        this.db.exec("ALTER TABLE notes ADD COLUMN participants TEXT");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS contacts (
+          email TEXT PRIMARY KEY,
+          display_name TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
       return true;
     } catch (error) {
       debugLogger.error("Database initialization failed", { error: error.message }, "database");
@@ -346,15 +395,19 @@ class DatabaseManager {
     }
   }
 
-  saveTranscription(text, rawText = null, { status = "completed", errorMessage = null } = {}) {
+  saveTranscription(
+    text,
+    rawText = null,
+    { status = "completed", errorMessage = null, errorCode = null } = {}
+  ) {
     try {
       if (!this.db) {
         throw new Error("Database not initialized");
       }
       const stmt = this.db.prepare(
-        "INSERT INTO transcriptions (text, raw_text, status, error_message) VALUES (?, ?, ?, ?)"
+        "INSERT INTO transcriptions (text, raw_text, status, error_message, error_code) VALUES (?, ?, ?, ?, ?)"
       );
-      const result = stmt.run(text, rawText, status, errorMessage);
+      const result = stmt.run(text, rawText, status, errorMessage, errorCode);
 
       const fetchStmt = this.db.prepare("SELECT * FROM transcriptions WHERE id = ?");
       const transcription = fetchStmt.get(result.lastInsertRowid);
@@ -434,13 +487,13 @@ class DatabaseManager {
     }
   }
 
-  updateTranscriptionStatus(id, status, errorMessage = null) {
+  updateTranscriptionStatus(id, status, errorMessage = null, errorCode = null) {
     try {
       if (!this.db) throw new Error("Database not initialized");
       const stmt = this.db.prepare(
-        "UPDATE transcriptions SET status = ?, error_message = ? WHERE id = ?"
+        "UPDATE transcriptions SET status = ?, error_message = ?, error_code = ? WHERE id = ?"
       );
-      stmt.run(status, errorMessage, id);
+      stmt.run(status, errorMessage, errorCode, id);
       return { success: true };
     } catch (error) {
       debugLogger.error(
@@ -602,6 +655,7 @@ class DatabaseManager {
         "folder_id",
         "transcript",
         "calendar_event_id",
+        "participants",
       ];
       const fields = [];
       const values = [];
@@ -806,17 +860,42 @@ class DatabaseManager {
     }
   }
 
-  createAgentConversation(title = "Untitled") {
+  createAgentConversation(title = "Untitled", noteId = null) {
     try {
       if (!this.db) throw new Error("Database not initialized");
       const result = this.db
-        .prepare("INSERT INTO agent_conversations (title) VALUES (?)")
-        .run(title);
+        .prepare("INSERT INTO agent_conversations (title, note_id) VALUES (?, ?)")
+        .run(title, noteId);
       return this.db
         .prepare("SELECT * FROM agent_conversations WHERE id = ?")
         .get(result.lastInsertRowid);
     } catch (error) {
       debugLogger.error("Error creating agent conversation", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  getConversationsForNote(noteId, limit = 20) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      return this.db
+        .prepare(
+          `SELECT c.id, c.title, c.created_at, c.updated_at,
+            COUNT(m.id) AS message_count
+          FROM agent_conversations c
+          LEFT JOIN agent_messages m ON m.conversation_id = c.id
+          WHERE c.note_id = ?
+          GROUP BY c.id
+          ORDER BY c.updated_at DESC
+          LIMIT ?`
+        )
+        .all(noteId, limit);
+    } catch (error) {
+      debugLogger.error(
+        "Error getting conversations for note",
+        { error: error.message },
+        "database"
+      );
       throw error;
     }
   }
@@ -931,12 +1010,15 @@ class DatabaseManager {
     }
   }
 
-  addAgentMessage(conversationId, role, content) {
+  addAgentMessage(conversationId, role, content, metadata) {
     try {
       if (!this.db) throw new Error("Database not initialized");
+      const metadataStr = metadata ? JSON.stringify(metadata) : null;
       const result = this.db
-        .prepare("INSERT INTO agent_messages (conversation_id, role, content) VALUES (?, ?, ?)")
-        .run(conversationId, role, content);
+        .prepare(
+          "INSERT INTO agent_messages (conversation_id, role, content, metadata) VALUES (?, ?, ?, ?)"
+        )
+        .run(conversationId, role, content, metadataStr);
       this.db
         .prepare("UPDATE agent_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         .run(conversationId);
@@ -1095,7 +1177,7 @@ class DatabaseManager {
       if (!this.db) throw new Error("Database not initialized");
       const transaction = this.db.transaction((eventList) => {
         const stmt = this.db.prepare(
-          "INSERT OR REPLACE INTO calendar_events (id, calendar_id, summary, start_time, end_time, is_all_day, status, hangout_link, conference_data, organizer_email, attendees_count, synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+          "INSERT OR REPLACE INTO calendar_events (id, calendar_id, summary, start_time, end_time, is_all_day, status, hangout_link, conference_data, organizer_email, attendees_count, attendees, synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
         );
         for (const e of eventList) {
           stmt.run(
@@ -1109,7 +1191,8 @@ class DatabaseManager {
             e.hangout_link || null,
             e.conference_data || null,
             e.organizer_email || null,
-            e.attendees_count || 0
+            e.attendees_count || 0,
+            e.attendees || null
           );
         }
       });
@@ -1171,6 +1254,50 @@ class DatabaseManager {
         .all(windowMinutes);
     } catch (error) {
       debugLogger.error("Error getting upcoming events", { error: error.message }, "gcal");
+      throw error;
+    }
+  }
+
+  getCalendarEventById(eventId) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      return this.db.prepare("SELECT * FROM calendar_events WHERE id = ?").get(eventId) || null;
+    } catch (error) {
+      debugLogger.error("Error getting calendar event by id", { error: error.message }, "gcal");
+      return null;
+    }
+  }
+
+  upsertContacts(contacts) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const transaction = this.db.transaction((list) => {
+        const stmt = this.db.prepare(
+          "INSERT INTO contacts (email, display_name, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(email) DO UPDATE SET display_name = COALESCE(excluded.display_name, contacts.display_name), updated_at = CURRENT_TIMESTAMP"
+        );
+        for (const c of list) {
+          if (c.email) stmt.run(c.email.toLowerCase().trim(), c.displayName || null);
+        }
+      });
+      transaction(contacts);
+      return { success: true };
+    } catch (error) {
+      debugLogger.error("Error upserting contacts", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  searchContacts(query) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const pattern = `%${query || ""}%`;
+      return this.db
+        .prepare(
+          "SELECT * FROM contacts WHERE email LIKE ? OR display_name LIKE ? ORDER BY display_name ASC, email ASC LIMIT 20"
+        )
+        .all(pattern, pattern);
+    } catch (error) {
+      debugLogger.error("Error searching contacts", { error: error.message }, "database");
       throw error;
     }
   }
@@ -1243,6 +1370,14 @@ class DatabaseManager {
 
   cleanup() {
     try {
+      if (this.db) {
+        try {
+          this.db.close();
+        } catch (closeError) {
+          debugLogger.error("Error closing database", { error: closeError.message }, "database");
+        }
+        this.db = null;
+      }
       const dbPath = path.join(
         app.getPath("userData"),
         process.env.NODE_ENV === "development" ? "transcriptions-dev.db" : "transcriptions.db"
@@ -1252,6 +1387,108 @@ class DatabaseManager {
       }
     } catch (error) {
       debugLogger.error("Error deleting database file", { error: error.message }, "database");
+    }
+  }
+  getAgentConversationsWithPreview(limit = 50, offset = 0, includeArchived = false) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const archiveFilter = includeArchived
+        ? "WHERE c.archived_at IS NOT NULL"
+        : "WHERE c.archived_at IS NULL";
+      return this.db
+        .prepare(
+          `SELECT c.id, c.title, c.created_at, c.updated_at, c.archived_at, c.cloud_id,
+            COUNT(m.id) AS message_count,
+            (SELECT content FROM agent_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
+            (SELECT role FROM agent_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message_role
+          FROM agent_conversations c
+          LEFT JOIN agent_messages m ON m.conversation_id = c.id
+          ${archiveFilter}
+          GROUP BY c.id
+          ORDER BY c.updated_at DESC
+          LIMIT ? OFFSET ?`
+        )
+        .all(limit, offset);
+    } catch (error) {
+      debugLogger.error(
+        "Error getting agent conversations with preview",
+        { error: error.message },
+        "database"
+      );
+      throw error;
+    }
+  }
+
+  searchAgentConversations(query, limit = 20) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const pattern = `%${query}%`;
+      return this.db
+        .prepare(
+          `SELECT DISTINCT c.id, c.title, c.created_at, c.updated_at, c.archived_at, c.cloud_id,
+            COUNT(m.id) AS message_count,
+            (SELECT content FROM agent_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
+            (SELECT role FROM agent_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message_role
+          FROM agent_conversations c
+          LEFT JOIN agent_messages m ON m.conversation_id = c.id
+          LEFT JOIN agent_messages ms ON ms.conversation_id = c.id
+          WHERE c.archived_at IS NULL
+            AND (c.title LIKE ? OR ms.content LIKE ?)
+          GROUP BY c.id
+          ORDER BY c.updated_at DESC
+          LIMIT ?`
+        )
+        .all(pattern, pattern, limit);
+    } catch (error) {
+      debugLogger.error(
+        "Error searching agent conversations",
+        { error: error.message },
+        "database"
+      );
+      throw error;
+    }
+  }
+
+  archiveAgentConversation(id) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      this.db
+        .prepare("UPDATE agent_conversations SET archived_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .run(id);
+      return { success: true };
+    } catch (error) {
+      debugLogger.error("Error archiving agent conversation", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  unarchiveAgentConversation(id) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      this.db.prepare("UPDATE agent_conversations SET archived_at = NULL WHERE id = ?").run(id);
+      return { success: true };
+    } catch (error) {
+      debugLogger.error(
+        "Error unarchiving agent conversation",
+        { error: error.message },
+        "database"
+      );
+      throw error;
+    }
+  }
+
+  updateAgentConversationCloudId(id, cloudId) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      this.db.prepare("UPDATE agent_conversations SET cloud_id = ? WHERE id = ?").run(cloudId, id);
+      return { success: true };
+    } catch (error) {
+      debugLogger.error(
+        "Error updating agent conversation cloud_id",
+        { error: error.message },
+        "database"
+      );
+      throw error;
     }
   }
 }

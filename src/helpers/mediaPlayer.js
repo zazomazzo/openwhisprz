@@ -453,68 +453,6 @@ try {
 }`.trim();
   }
 
-  _isWindowsAudioPlaying() {
-    const script = `
-Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-
-public class AudioPeakMeter {
-    [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IMMDeviceEnumerator {
-        int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
-        int GetDefaultAudioEndpoint(int dataFlow, int role, out IntPtr device);
-    }
-
-    [Guid("D666063F-1587-4E43-81F1-B948E807363F")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IMMDevice {
-        int Activate([MarshalAs(UnmanagedType.LPStruct)] Guid iid, int clsCtx, IntPtr activationParams, [MarshalAs(UnmanagedType.IUnknown)] out object ppInterface);
-    }
-
-    [Guid("C02216F6-8C67-4B5B-9D00-D008E73E0064")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IAudioMeterInformation {
-        int GetPeakValue(out float peak);
-    }
-
-    public static float GetPeak() {
-        var type = Type.GetTypeFromCLSID(new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"));
-        var enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(type);
-        IntPtr devicePtr;
-        enumerator.GetDefaultAudioEndpoint(0, 1, out devicePtr);
-        var device = (IMMDevice)Marshal.GetObjectForIUnknown(devicePtr);
-        Marshal.Release(devicePtr);
-        object activated;
-        device.Activate(new Guid("C02216F6-8C67-4B5B-9D00-D008E73E0064"), 1, IntPtr.Zero, out activated);
-        var meter = (IAudioMeterInformation)activated;
-        float peak;
-        meter.GetPeakValue(out peak);
-        return peak;
-    }
-}
-'@
-try {
-    $peak = [AudioPeakMeter]::GetPeak()
-    if ($peak -gt 0) { Write-Output 'PLAYING' } else { Write-Output 'SILENT' }
-} catch {
-    Write-Output 'UNKNOWN'
-}`.trim();
-
-    const result = spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], {
-      stdio: "pipe",
-      timeout: 5000,
-    });
-
-    if (result.status === 0) {
-      const output = (result.stdout?.toString() || "").trim();
-      if (output === "PLAYING") return true;
-      if (output === "SILENT") return false;
-    }
-    return null; // unknown
-  }
-
   _sendWindowsMediaKey() {
     const nircmd = this._resolveNircmd();
     if (nircmd) {
@@ -544,7 +482,7 @@ try {
   _pauseWindows() {
     this._pausedWinApps = [];
 
-    // Try GSMTC first (Windows 10 1809+)
+    // Use GSMTC (Windows 10 1809+) — state-aware, targets specific apps
     const result = spawnSync(
       "powershell",
       ["-NoProfile", "-NonInteractive", "-Command", this._gsmtcPauseScript()],
@@ -553,38 +491,20 @@ try {
 
     if (result.status === 0) {
       const output = (result.stdout?.toString() || "").trim();
-      if (output && output !== "GSMTC_FAIL") {
-        this._pausedWinApps = output.split("|").filter(Boolean);
-        if (this._pausedWinApps.length > 0) {
-          debugLogger.debug("Media paused via GSMTC", { apps: this._pausedWinApps }, "media");
-          return true;
-        }
-        // GSMTC worked but nothing was playing
+      if (output === "GSMTC_FAIL") {
+        debugLogger.debug("GSMTC unavailable on this system", {}, "media");
         return false;
       }
+      this._pausedWinApps = output.split("|").filter(Boolean);
+      if (this._pausedWinApps.length > 0) {
+        debugLogger.debug("Media paused via GSMTC", { apps: this._pausedWinApps }, "media");
+        return true;
+      }
+      debugLogger.debug("GSMTC found no playing sessions", {}, "media");
+      return false;
     }
 
-    // Fallback: check if audio is actually playing before sending toggle key
-    debugLogger.debug("GSMTC unavailable, checking audio peak meter", {}, "media");
-    this._didPause = false;
-    const isPlaying = this._isWindowsAudioPlaying();
-    if (isPlaying === false) {
-      debugLogger.debug(
-        "No audio playing, skipping media key to avoid starting playback",
-        {},
-        "media"
-      );
-      return false;
-    }
-    if (isPlaying === null) {
-      debugLogger.debug("Could not detect audio state, skipping media key to be safe", {}, "media");
-      return false;
-    }
-    if (this._sendWindowsMediaKey()) {
-      debugLogger.debug("Media paused via Windows media key", {}, "media");
-      this._didPause = true;
-      return true;
-    }
+    debugLogger.debug("GSMTC PowerShell failed to execute", { status: result.status }, "media");
     return false;
   }
 
@@ -607,13 +527,6 @@ try {
       return false;
     }
 
-    // Fallback: only toggle back if we toggled on pause
-    if (!this._didPause) return false;
-    this._didPause = false;
-    if (this._sendWindowsMediaKey()) {
-      debugLogger.debug("Media resumed via Windows media key", {}, "media");
-      return true;
-    }
     return false;
   }
 

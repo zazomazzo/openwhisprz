@@ -1,4 +1,7 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
+import { useSettingsLayout } from "./useSettingsLayout";
+import type { InferenceMode } from "../../types/electron";
 
 interface SettingsSectionProps {
   title: string;
@@ -66,15 +69,21 @@ export const SettingsRow: React.FC<SettingsRowProps> = ({
   children,
   className = "",
 }) => {
+  const { isCompact } = useSettingsLayout();
+
   return (
-    <div className={`flex items-center justify-between gap-4 ${className}`}>
+    <div
+      className={`flex ${
+        isCompact ? "flex-col items-start gap-2" : "items-center justify-between gap-4"
+      } ${className}`}
+    >
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-foreground">{label}</p>
         {description && (
           <p className="text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">{description}</p>
         )}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className={isCompact ? "" : "shrink-0"}>{children}</div>
     </div>
   );
 };
@@ -102,7 +111,11 @@ export function SettingsPanelRow({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={`px-4 py-3 ${className}`}>{children}</div>;
+  const { isCompact } = useSettingsLayout();
+
+  return (
+    <div className={`${isCompact ? "px-3 py-2.5" : "px-4 py-3"} ${className}`}>{children}</div>
+  );
 }
 
 export function SectionHeader({ title, description }: { title: string; description?: string }) {
@@ -113,5 +126,78 @@ export function SectionHeader({ title, description }: { title: string; descripti
         <p className="text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">{description}</p>
       )}
     </div>
+  );
+}
+
+export interface InferenceModeOption {
+  id: InferenceMode;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+}
+
+export function InferenceModeSelector({
+  modes,
+  activeMode,
+  onSelect,
+}: {
+  modes: InferenceModeOption[];
+  activeMode: InferenceMode;
+  onSelect: (mode: InferenceMode) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <SettingsPanel>
+      {modes.map((mode) => {
+        const isActive = activeMode === mode.id;
+        return (
+          <SettingsPanelRow key={mode.id}>
+            <button
+              onClick={() => onSelect(mode.id)}
+              className="w-full flex items-center gap-3 text-left cursor-pointer group"
+            >
+              <div
+                className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-colors ${
+                  isActive
+                    ? "bg-primary/10 dark:bg-primary/15"
+                    : "bg-muted/60 dark:bg-surface-raised group-hover:bg-muted dark:group-hover:bg-surface-3"
+                }`}
+              >
+                <div
+                  className={`transition-colors ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                >
+                  {mode.icon}
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-foreground">{mode.label}</span>
+                  {isActive && (
+                    <span className="text-xs font-medium text-primary bg-primary/10 dark:bg-primary/15 px-1.5 py-px rounded-sm">
+                      {t("common.active")}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground/80 mt-0.5">{mode.description}</p>
+              </div>
+              <div
+                className={`w-4 h-4 rounded-full border-2 shrink-0 transition-colors ${
+                  isActive
+                    ? "border-primary bg-primary"
+                    : "border-border-hover dark:border-border-subtle"
+                }`}
+              >
+                {isActive && (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground" />
+                  </div>
+                )}
+              </div>
+            </button>
+          </SettingsPanelRow>
+        );
+      })}
+    </SettingsPanel>
   );
 }

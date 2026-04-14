@@ -107,7 +107,7 @@ func getInputDevices() -> [AudioDeviceID] {
 func isDeviceRunning(_ deviceID: AudioDeviceID) -> Bool {
     var address = AudioObjectPropertyAddress(
         mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
-        mScope: kAudioObjectPropertyScopeInput,
+        mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMain
     )
     var isRunning: UInt32 = 0
@@ -187,7 +187,7 @@ let deviceListListener: AudioObjectPropertyListenerProc = {
 func registerRunningListener(on deviceID: AudioDeviceID) {
     var address = AudioObjectPropertyAddress(
         mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
-        mScope: kAudioObjectPropertyScopeInput,
+        mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMain
     )
 
@@ -200,7 +200,7 @@ func registerRunningListener(on deviceID: AudioDeviceID) {
 func removeRunningListener(from deviceID: AudioDeviceID) {
     var address = AudioObjectPropertyAddress(
         mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
-        mScope: kAudioObjectPropertyScopeInput,
+        mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMain
     )
 
@@ -284,6 +284,14 @@ registerListeners()
 let active = isAnyInputRunning()
 previouslyActive = active
 emit(active ? "MIC_ACTIVE" : "MIC_INACTIVE")
+
+// Heartbeat: periodic check in case property listeners miss events
+let heartbeatTimer = DispatchSource.makeTimerSource(queue: .main)
+heartbeatTimer.schedule(deadline: .now() + 5, repeating: 5)
+heartbeatTimer.setEventHandler {
+    checkAndEmitState()
+}
+heartbeatTimer.resume()
 
 // Keep the process alive
 CFRunLoopRun()

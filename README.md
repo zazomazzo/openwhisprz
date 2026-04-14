@@ -45,6 +45,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   - **Google**: Gemini 3.1 Pro, Gemini 3 Flash, Gemini 2.5 Flash Lite
   - **Groq**: Ultra-fast inference with Llama and Mixtral models
   - **Local**: Qwen, LLaMA, Mistral, Gemma models via llama.cpp
+- 🛠️ **Agent Tool Calling**: Agentic tools for searching, creating, and updating notes — with RAG context injection for local models
 - 🤖 **AI Actions**: Apply AI-powered actions to notes with customizable processing templates
 
 ### Meeting Transcription
@@ -52,14 +53,18 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 📅 **Google Calendar Integration**: Connect multiple Google accounts, view upcoming meetings in the sidebar, and receive auto-detection prompts
 - 🎙️ **Live Meeting Transcription**: Record and transcribe meetings in real-time via OpenAI Realtime API with automatic meeting detection (Zoom, Teams, FaceTime)
 - ⚡ **WebSocket Streaming for BYOK**: Real-time OpenAI Realtime API streaming for standard dictation mode, not just meetings — unified streaming path for all transcription
+- ⌨️ **Meeting Hotkey**: Dedicated hotkey to start/stop meeting transcription independently from dictation
 - 🔍 **Smart Detection**: Combines process monitoring, sustained audio detection, and calendar awareness to detect meetings automatically
 
 ### Notes
 
 - 📝 **Notes System**: Create, edit, and organize notes with folders, audio upload, and real-time dictation
 - 🔎 **Full-Text Search**: FTS5-powered search across all note content with Cmd+K command palette
+- 🧠 **Local Semantic Search**: Always-on Qdrant vector DB with MiniLM embeddings for offline meaning-based search across notes
 - ☁️ **Cloud Sync**: Local-first storage with cloud backup and semantic search
+- 💬 **Embedded Chat**: Chat panel in the note editor with floating and sidebar modes
 - 📁 **Folder Organization**: Organize notes into custom folders with drag-and-drop
+- 💾 **Save Notes as Files**: Export notes to the local filesystem as Markdown files, mirroring your folder hierarchy
 
 ### Cloud & Account
 
@@ -72,11 +77,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - 🌐 **Cross-Platform**: Works on macOS, Windows, and Linux
 - 🎨 **Modern UI**: Built with React 19, TypeScript, and Tailwind CSS v4
+- 📱 **Responsive Settings**: Settings dialog adapts to narrow windows with collapsible icon-rail sidebar and stacked layouts
 - 🖱️ **Draggable Interface**: Move the dictation panel anywhere on your screen with configurable start position
 - 🌐 **Globe Key Toggle (macOS)**: Optional Fn/Globe key listener for a hardware-level dictation trigger — no Input Monitoring permission required
 - ⌨️ **Compound Hotkeys**: Support for multi-key combinations like `Cmd+Shift+K`
 - 🎙️ **Push-to-Talk (Windows)**: Native low-level keyboard hook for true push-to-talk with compound hotkey support
 - 🐧 **GNOME Wayland Support**: Native global shortcuts via D-Bus for GNOME Wayland users
+- 🐧 **KDE Wayland Support**: Native global shortcuts via D-Bus for KDE Plasma on Wayland
+- 🐧 **Hyprland Wayland Support**: Native global shortcuts via `hyprctl` keybindings + D-Bus for Hyprland users
+- 🖥️ **Multi-Monitor**: Floating dictation icon follows your cursor across monitors
 - 🧹 **Model Cleanup**: One-click removal of cached models with uninstall hooks to keep disks tidy
 
 ## Prerequisites
@@ -385,7 +394,7 @@ npm run build:linux  # Linux
 2. **Grant Permissions**:
    - **Microphone Access**: Required for voice recording
    - **Accessibility Permissions**: Required for automatic text pasting (macOS)
-   - **Screen Recording** (optional, macOS): Required for meeting audio capture — prompted during onboarding if you want meeting features
+   - **Screen Recording / System Audio**: macOS prompts during onboarding for meeting capture. On Linux, system audio is shared through the desktop portal when recording starts
 
 3. **Name Your Agent**: Give your AI assistant a personal name (e.g., "Assistant", "Jarvis", "Alex")
    - Makes interactions feel more natural and conversational
@@ -485,6 +494,7 @@ Automatically detect and transcribe meetings with Google Calendar integration:
 3. **Auto-Detection**: When a meeting starts (Zoom, Teams, FaceTime), a notification appears asking to record
 4. **Live Transcription**: Meeting audio is transcribed in real-time via OpenAI Realtime API
 5. **Review**: Meeting transcriptions are saved as notes for later review and AI enhancement
+6. **Linux system audio**: Uses the standard desktop portal chooser today, with runtime capability detection and fallback handling for future persistent portal support
 
 ### Processing Options
 
@@ -506,7 +516,6 @@ Automatically detect and transcribe meetings with Google Calendar integration:
 open-whispr/
 ├── main.js              # Electron main process & IPC handlers
 ├── preload.js           # Electron preload script & API bridge
-├── setup.js             # First-time setup script
 ├── package.json         # Dependencies and scripts
 ├── env.example          # Environment variables template
 ├── CHANGELOG.md         # Project changelog
@@ -567,9 +576,10 @@ open-whispr/
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS v4
 - **Build Tool**: Vite with optimized Tailwind plugin
-- **Desktop**: Electron 36 with context isolation
+- **Desktop**: Electron 39 with context isolation
 - **UI Components**: shadcn/ui with Radix primitives
-- **Database**: better-sqlite3 with FTS5 for local storage (transcriptions, notes, agents, calendar)
+- **Local Database**: better-sqlite3 with FTS5 for local storage (transcriptions, notes, agents, calendar)
+- **Cloud Database**: [Neon Serverless Postgres](https://console.neon.tech/app/?promo=openwhispr) — powers OpenWhispr Cloud accounts, sync, and authentication
 - **Speech-to-Text**: OpenAI Whisper (whisper.cpp) + NVIDIA Parakeet (sherpa-onnx) for local, OpenAI API for cloud
 - **Live Transcription**: OpenAI Realtime API over WebSocket for meeting transcription
 - **AI Processing**: Multi-provider streaming (OpenAI, Anthropic, Gemini, Groq, local llama.cpp)
@@ -582,7 +592,6 @@ open-whispr/
 
 - `npm run dev` - Start development with hot reload
 - `npm run start` - Start production build
-- `npm run setup` - First-time setup (creates .env file)
 - `npm run build:renderer` - Build the React app only
 - `npm run download:whisper-cpp` - Download whisper.cpp for the current platform
 - `npm run download:whisper-cpp:all` - Download whisper.cpp for all platforms
@@ -658,7 +667,7 @@ Note: build/pack/dist scripts automatically download whisper.cpp, llama-server, 
 
 ### Environment Variables
 
-Create a `.env` file in the root directory (or use `npm run setup`):
+Create a `.env` file in the root directory (see [.env.example](.env.example) for the template):
 
 ```env
 # OpenAI API Configuration (optional - only needed for cloud processing)
@@ -845,7 +854,7 @@ A: No. As of v1.6.0, OpenWhispr uses NSEvent monitors instead of CGEvent taps, e
 
 ## Project Status
 
-OpenWhispr is actively maintained and ready for production use. Current version: 1.6.2
+OpenWhispr is actively maintained and ready for production use. Current version: 1.6.7
 
 - ✅ Core dictation with local and cloud processing
 - ✅ Cross-platform support (macOS, Windows, Linux)
@@ -861,8 +870,24 @@ OpenWhispr is actively maintained and ready for production use. Current version:
 - ✅ Custom dictionary with auto-learn correction monitoring
 - ✅ NVIDIA Parakeet support via sherpa-onnx
 - ✅ Compound hotkeys and Windows Push-to-Talk
-- ✅ GNOME Wayland native global shortcuts
+- ✅ GNOME Wayland and Hyprland native global shortcuts
 - ✅ Referral program with shareable invite cards
+- ✅ Dedicated meeting mode hotkey
+- ✅ CodeQL static analysis and Dependabot dependency updates
+
+## Sponsors
+
+<p align="center">
+  <a href="https://console.neon.tech/app/?promo=openwhispr">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://neon.com/brand/neon-logo-dark-color.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://neon.com/brand/neon-logo-light-color.svg">
+      <img width="250" alt="Neon" src="https://neon.com/brand/neon-logo-light-color.svg">
+    </picture>
+  </a>
+</p>
+
+<p align="center"><a href="https://console.neon.tech/app/?promo=openwhispr">Neon</a> is the serverless Postgres platform powering OpenWhispr Cloud accounts, sync, and authentication.</p>
 
 ## Acknowledgments
 
@@ -875,3 +900,4 @@ OpenWhispr is actively maintained and ready for production use. Current version:
 - **[shadcn/ui](https://ui.shadcn.com/)** - Beautiful UI components built on Radix primitives
 - **[Hugging Face](https://huggingface.co/)** - Model hosting platform for our local speech recognition and language models
 - **[llama.cpp](https://github.com/ggerganov/llama.cpp)** - Local LLM inference for AI-powered text processing
+- **[Neon](https://console.neon.tech/app/?promo=openwhispr)** - Serverless Postgres powering OpenWhispr Cloud accounts and sync. Official sponsor of the OpenWhispr Open Source project.

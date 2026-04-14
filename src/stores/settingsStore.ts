@@ -4,7 +4,7 @@ import i18n, { normalizeUiLanguage } from "../i18n";
 import { hasStoredByokKey } from "../utils/byokDetection";
 import { ensureAgentNameInDictionary } from "../utils/agentName";
 import logger from "../utils/logger";
-import type { LocalTranscriptionProvider } from "../types/electron";
+import type { LocalTranscriptionProvider, InferenceMode, SelfHostedType } from "../types/electron";
 import type { GoogleCalendarAccount } from "../types/calendar";
 import type {
   TranscriptionSettings,
@@ -64,6 +64,8 @@ const BOOLEAN_SETTINGS = new Set([
   "isSignedIn",
   "agentEnabled",
   "keepTranscriptionInClipboard",
+  "dataRetentionEnabled",
+  "noteFilesEnabled",
 ]);
 
 const ARRAY_SETTINGS = new Set(["customDictionary", "gcalAccounts"]);
@@ -81,6 +83,80 @@ function migratePreferredLanguage() {
 }
 
 migratePreferredLanguage();
+
+function migrateProviderSettings() {
+  if (!isBrowser) return;
+  if (localStorage.getItem("_providerSettingsMigrated") === "1") return;
+
+  const cloudMode = localStorage.getItem("cloudTranscriptionMode");
+  const useLocal = localStorage.getItem("useLocalWhisper") === "true";
+  const provider = localStorage.getItem("cloudTranscriptionProvider");
+
+  let transcriptionMode: InferenceMode = "openwhispr";
+  if (useLocal) {
+    transcriptionMode = "local";
+  } else if (cloudMode === "byok") {
+    transcriptionMode = provider === "custom" ? "self-hosted" : "providers";
+  }
+  localStorage.setItem("transcriptionMode", transcriptionMode);
+
+  if (provider === "custom" && cloudMode === "byok") {
+    localStorage.setItem("remoteTranscriptionType", "openai-compatible");
+  }
+
+  const reasoningMode = localStorage.getItem("cloudReasoningMode");
+  const reasoningProvider = localStorage.getItem("reasoningProvider");
+  let newReasoningMode: InferenceMode = "openwhispr";
+  if (reasoningMode === "byok") {
+    if (reasoningProvider === "custom") {
+      newReasoningMode = "self-hosted";
+    } else if (
+      reasoningProvider === "qwen" ||
+      reasoningProvider === "llama" ||
+      reasoningProvider === "mistral" ||
+      reasoningProvider === "openai-oss" ||
+      reasoningProvider === "gemma"
+    ) {
+      newReasoningMode = "local";
+    } else {
+      newReasoningMode = "providers";
+    }
+  }
+  localStorage.setItem("reasoningMode", newReasoningMode);
+
+  if (reasoningProvider === "custom" && reasoningMode === "byok") {
+    localStorage.setItem("remoteReasoningType", "openai-compatible");
+  }
+
+  localStorage.setItem("_providerSettingsMigrated", "1");
+}
+
+migrateProviderSettings();
+
+function migrateAgentMode() {
+  if (!isBrowser) return;
+  if (localStorage.getItem("_agentModeMigrated") === "1") return;
+
+  const cloudAgentMode = localStorage.getItem("cloudAgentMode");
+  const agentProvider = localStorage.getItem("agentProvider");
+
+  let agentInferenceMode: InferenceMode = "openwhispr";
+  if (cloudAgentMode === "byok") {
+    const localProviders = ["qwen", "llama", "mistral", "openai-oss", "gemma"];
+    if (agentProvider === "custom") {
+      agentInferenceMode = "self-hosted";
+    } else if (agentProvider && localProviders.includes(agentProvider)) {
+      agentInferenceMode = "local";
+    } else {
+      agentInferenceMode = "providers";
+    }
+  }
+  localStorage.setItem("agentInferenceMode", agentInferenceMode);
+
+  localStorage.setItem("_agentModeMigrated", "1");
+}
+
+migrateAgentMode();
 
 export interface SettingsState
   extends
@@ -104,6 +180,22 @@ export interface SettingsState
   meetingAudioDetection: boolean;
   panelStartPosition: "bottom-right" | "center" | "bottom-left";
   keepTranscriptionInClipboard: boolean;
+  noteFilesEnabled: boolean;
+  noteFilesPath: string;
+
+  transcriptionMode: InferenceMode;
+  remoteTranscriptionType: SelfHostedType;
+  remoteTranscriptionUrl: string;
+  reasoningMode: InferenceMode;
+  remoteReasoningType: SelfHostedType;
+  remoteReasoningUrl: string;
+
+  setTranscriptionMode: (mode: InferenceMode) => void;
+  setRemoteTranscriptionType: (type: SelfHostedType) => void;
+  setRemoteTranscriptionUrl: (url: string) => void;
+  setReasoningMode: (mode: InferenceMode) => void;
+  setRemoteReasoningType: (type: SelfHostedType) => void;
+  setRemoteReasoningUrl: (url: string) => void;
 
   setUseLocalWhisper: (value: boolean) => void;
   setWhisperModel: (value: string) => void;
@@ -135,6 +227,7 @@ export interface SettingsState
   setCustomReasoningApiKey: (key: string) => void;
 
   setDictationKey: (key: string) => void;
+  setMeetingKey: (key: string) => void;
   setActivationMode: (mode: "tap" | "push") => void;
 
   setPreferBuiltInMic: (value: boolean) => void;
@@ -144,6 +237,7 @@ export interface SettingsState
   setCloudBackupEnabled: (value: boolean) => void;
   setTelemetryEnabled: (value: boolean) => void;
   setAudioRetentionDays: (days: number) => void;
+  setDataRetentionEnabled: (value: boolean) => void;
   setAudioCuesEnabled: (value: boolean) => void;
   setPauseMediaOnDictation: (value: boolean) => void;
   setFloatingIconAutoHide: (enabled: boolean) => void;
@@ -153,6 +247,8 @@ export interface SettingsState
   setMeetingAudioDetection: (value: boolean) => void;
   setPanelStartPosition: (position: "bottom-right" | "center" | "bottom-left") => void;
   setKeepTranscriptionInClipboard: (value: boolean) => void;
+  setNoteFilesEnabled: (value: boolean) => void;
+  setNoteFilesPath: (value: string) => void;
   setIsSignedIn: (value: boolean) => void;
 
   setAgentModel: (value: string) => void;
@@ -161,6 +257,8 @@ export interface SettingsState
   setAgentSystemPrompt: (value: string) => void;
   setAgentEnabled: (value: boolean) => void;
   setCloudAgentMode: (value: string) => void;
+  setAgentInferenceMode: (mode: InferenceMode) => void;
+  setRemoteAgentUrl: (url: string) => void;
 
   updateTranscriptionSettings: (settings: Partial<TranscriptionSettings>) => void;
   updateReasoningSettings: (settings: Partial<ReasoningSettings>) => void;
@@ -256,6 +354,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   customReasoningApiKey: readString("customReasoningApiKey", ""),
 
   dictationKey: readString("dictationKey", ""),
+  meetingKey: readString("meetingKey", ""),
   activationMode: (readString("activationMode", "tap") === "push" ? "push" : "tap") as
     | "tap"
     | "push",
@@ -277,6 +376,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     const parsed = parseInt(stored, 10);
     return isNaN(parsed) ? 30 : parsed;
   })(),
+  dataRetentionEnabled: readBoolean("dataRetentionEnabled", true),
   audioCuesEnabled: readBoolean("audioCuesEnabled", true),
   pauseMediaOnDictation: readBoolean("pauseMediaOnDictation", false),
   floatingIconAutoHide: readBoolean("floatingIconAutoHide", false),
@@ -302,8 +402,42 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (v === "bottom-right" || v === "center" || v === "bottom-left") return v;
     return "bottom-right" as const;
   })(),
-  keepTranscriptionInClipboard: readBoolean("keepTranscriptionInClipboard", true),
+  keepTranscriptionInClipboard: readBoolean("keepTranscriptionInClipboard", false),
+  noteFilesEnabled: readBoolean("noteFilesEnabled", false),
+  noteFilesPath: readString("noteFilesPath", ""),
   isSignedIn: readBoolean("isSignedIn", false),
+
+  transcriptionMode: (() => {
+    const v = readString("transcriptionMode", "openwhispr");
+    if (v === "openwhispr" || v === "providers" || v === "local" || v === "self-hosted") return v;
+    return "openwhispr" as InferenceMode;
+  })(),
+  remoteTranscriptionType: (() => {
+    const v = readString("remoteTranscriptionType", "lan");
+    return v === "openai-compatible" ? "openai-compatible" : ("lan" as SelfHostedType);
+  })(),
+  remoteTranscriptionUrl: readString("remoteTranscriptionUrl", ""),
+  reasoningMode: (() => {
+    const v = readString("reasoningMode", "openwhispr");
+    if (v === "openwhispr" || v === "providers" || v === "local" || v === "self-hosted") return v;
+    return "openwhispr" as InferenceMode;
+  })(),
+  remoteReasoningType: (() => {
+    const v = readString("remoteReasoningType", "lan");
+    return v === "openai-compatible" ? "openai-compatible" : ("lan" as SelfHostedType);
+  })(),
+  remoteReasoningUrl: readString("remoteReasoningUrl", ""),
+
+  setTranscriptionMode: createStringSetter("transcriptionMode") as (mode: InferenceMode) => void,
+  setRemoteTranscriptionType: createStringSetter("remoteTranscriptionType") as (
+    type: SelfHostedType
+  ) => void,
+  setRemoteTranscriptionUrl: createStringSetter("remoteTranscriptionUrl"),
+  setReasoningMode: createStringSetter("reasoningMode") as (mode: InferenceMode) => void,
+  setRemoteReasoningType: createStringSetter("remoteReasoningType") as (
+    type: SelfHostedType
+  ) => void,
+  setRemoteReasoningUrl: createStringSetter("remoteReasoningUrl"),
 
   agentModel: readString("agentModel", "openai/gpt-oss-120b"),
   agentProvider: readString("agentProvider", "groq"),
@@ -311,6 +445,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   agentSystemPrompt: readString("agentSystemPrompt", ""),
   agentEnabled: readBoolean("agentEnabled", true),
   cloudAgentMode: readString("cloudAgentMode", "openwhispr"),
+  agentInferenceMode: (() => {
+    const v = readString("agentInferenceMode", "openwhispr");
+    if (v === "openwhispr" || v === "providers" || v === "local" || v === "self-hosted") return v;
+    return "openwhispr" as InferenceMode;
+  })(),
+  remoteAgentUrl: readString("remoteAgentUrl", ""),
 
   setUseLocalWhisper: createBooleanSetter("useLocalWhisper"),
   setWhisperModel: createStringSetter("whisperModel"),
@@ -396,7 +536,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (isBrowser) localStorage.setItem("customTranscriptionApiKey", key);
     set({ customTranscriptionApiKey: key });
     window.electronAPI?.saveCustomTranscriptionKey?.(key);
-    invalidateApiKeyCaches();
+    invalidateApiKeyCaches("custom");
   },
   setCustomReasoningApiKey: (key: string) => {
     if (isBrowser) localStorage.setItem("customReasoningApiKey", key);
@@ -413,12 +553,18 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       window.electronAPI?.saveDictationKey?.(key);
     }
   },
+  setMeetingKey: (key: string) => {
+    if (isBrowser) localStorage.setItem("meetingKey", key);
+    set({ meetingKey: key });
+  },
 
   setActivationMode: (mode: "tap" | "push") => {
-    if (isBrowser) localStorage.setItem("activationMode", mode);
-    set({ activationMode: mode });
+    // Linux has no native key listener for push-to-talk — force tap
+    const effective = isBrowser && window.electronAPI?.getPlatform?.() === "linux" ? "tap" : mode;
+    if (isBrowser) localStorage.setItem("activationMode", effective);
+    set({ activationMode: effective });
     if (isBrowser) {
-      window.electronAPI?.notifyActivationModeChanged?.(mode);
+      window.electronAPI?.notifyActivationModeChanged?.(effective);
     }
   },
 
@@ -435,6 +581,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setAudioRetentionDays: (days: number) => {
     if (isBrowser) localStorage.setItem("audioRetentionDays", String(days));
     set({ audioRetentionDays: days });
+  },
+  setDataRetentionEnabled: (value: boolean) => {
+    if (isBrowser) localStorage.setItem("dataRetentionEnabled", String(value));
+    set({ dataRetentionEnabled: value });
+    logger.info(
+      value
+        ? "Data retention enabled — transcriptions and audio will be saved"
+        : "Data retention disabled — transcriptions and audio will not be saved",
+      {},
+      "settings"
+    );
   },
   setAudioCuesEnabled: createBooleanSetter("audioCuesEnabled"),
   setPauseMediaOnDictation: createBooleanSetter("pauseMediaOnDictation"),
@@ -477,6 +634,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   },
 
   setKeepTranscriptionInClipboard: createBooleanSetter("keepTranscriptionInClipboard"),
+  setNoteFilesEnabled: createBooleanSetter("noteFilesEnabled"),
+  setNoteFilesPath: createStringSetter("noteFilesPath"),
 
   setIsSignedIn: (value: boolean) => {
     if (isBrowser) localStorage.setItem("isSignedIn", String(value));
@@ -486,16 +645,50 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setAgentModel: createStringSetter("agentModel"),
   setAgentProvider: createStringSetter("agentProvider"),
   setAgentKey: (key: string) => {
-    if (isBrowser) localStorage.setItem("agentKey", key);
-    useSettingsStore.setState({ agentKey: key });
-    if (isBrowser) {
-      window.electronAPI?.notifyAgentHotkeyChanged?.(key);
-      window.electronAPI?.saveAgentKey?.(key);
+    if (!isBrowser) {
+      useSettingsStore.setState({ agentKey: key });
+      return;
     }
+
+    const updateAgentHotkey = window.electronAPI?.updateAgentHotkey;
+    if (!updateAgentHotkey) {
+      localStorage.setItem("agentKey", key);
+      useSettingsStore.setState({ agentKey: key });
+      window.electronAPI?.saveAgentKey?.(key);
+      return;
+    }
+
+    const previousKey = get().agentKey;
+
+    void updateAgentHotkey(key)
+      .then((result) => {
+        if (!result?.success) {
+          localStorage.setItem("agentKey", previousKey);
+          useSettingsStore.setState({ agentKey: previousKey });
+          logger.warn(
+            "Failed to update agent hotkey",
+            { hotkey: key, message: result?.message },
+            "settings"
+          );
+          return;
+        }
+
+        localStorage.setItem("agentKey", key);
+        useSettingsStore.setState({ agentKey: key });
+      })
+      .catch((error) => {
+        logger.warn(
+          "Failed to update agent hotkey",
+          { hotkey: key, error: error instanceof Error ? error.message : String(error) },
+          "settings"
+        );
+      });
   },
   setAgentSystemPrompt: createStringSetter("agentSystemPrompt"),
   setAgentEnabled: createBooleanSetter("agentEnabled"),
   setCloudAgentMode: createStringSetter("cloudAgentMode"),
+  setAgentInferenceMode: createStringSetter("agentInferenceMode") as (mode: InferenceMode) => void,
+  setRemoteAgentUrl: createStringSetter("remoteAgentUrl"),
 
   updateTranscriptionSettings: (settings: Partial<TranscriptionSettings>) => {
     const s = useSettingsStore.getState();
@@ -648,15 +841,34 @@ export async function initializeSettings(): Promise<void> {
       );
     }
 
-    // Sync dictation key from main process
+    // Sync dictation key from main process.
+    // localStorage holds the user's preferred hotkey. Only populate from .env
+    // when localStorage is empty (fresh install / cleared data).
     try {
-      const envKey = await window.electronAPI.getDictationKey?.();
-      if (envKey && envKey !== state.dictationKey) {
-        createStringSetter("dictationKey")(envKey);
+      if (!state.dictationKey) {
+        const envKey = await window.electronAPI.getDictationKey?.();
+        if (envKey) {
+          createStringSetter("dictationKey")(envKey);
+        }
       }
     } catch (err) {
       logger.warn(
         "Failed to sync dictation key on startup",
+        { error: (err as Error).message },
+        "settings"
+      );
+    }
+
+    // Show the active hotkey in UI (zustand only, not localStorage).
+    // May return constructor default during early startup; corrected by dictation-key-active event later.
+    try {
+      const activeKey = await window.electronAPI?.getActiveDictationKey?.();
+      if (activeKey) {
+        useSettingsStore.setState({ dictationKey: activeKey });
+      }
+    } catch (err) {
+      logger.warn(
+        "Failed to sync active dictation key on startup",
         { error: (err as Error).message },
         "settings"
       );
@@ -676,9 +888,10 @@ export async function initializeSettings(): Promise<void> {
       );
     }
 
-    // Sync activation mode from main process
+    // Sync activation mode from main process (Linux forces tap — no native key listener)
     try {
-      const envMode = await window.electronAPI.getActivationMode?.();
+      let envMode = await window.electronAPI.getActivationMode?.();
+      if (window.electronAPI?.getPlatform?.() === "linux") envMode = "tap";
       if (envMode && envMode !== state.activationMode) {
         if (isBrowser) localStorage.setItem("activationMode", envMode);
         useSettingsStore.setState({ activationMode: envMode });
@@ -734,6 +947,21 @@ export async function initializeSettings(): Promise<void> {
       );
     }
 
+    // Sync meeting detection preferences to main process
+    try {
+      const currentState = useSettingsStore.getState();
+      await window.electronAPI.meetingDetectionSetPreferences?.({
+        processDetection: currentState.meetingProcessDetection,
+        audioDetection: currentState.meetingAudioDetection,
+      });
+    } catch (err) {
+      logger.warn(
+        "Failed to sync meeting detection preferences on startup",
+        { error: (err as Error).message },
+        "settings"
+      );
+    }
+
     ensureAgentNameInDictionary();
   }
 
@@ -775,6 +1003,26 @@ export async function initializeSettings(): Promise<void> {
 
     if (key === "uiLanguage" && typeof value === "string") {
       void i18n.changeLanguage(value);
+    }
+  });
+
+  // Active hotkey updates from backend — zustand only, not localStorage.
+  window.electronAPI?.onDictationKeyActive?.((key: string) => {
+    useSettingsStore.setState({ dictationKey: key });
+  });
+
+  // Sync settings pushed from main process (e.g., hotkey changed in control panel)
+  window.electronAPI?.onSettingUpdated?.((data: { key: string; value: unknown }) => {
+    const state = useSettingsStore.getState();
+    if (
+      data.key in state &&
+      typeof (state as unknown as Record<string, unknown>)[data.key] !== "function"
+    ) {
+      localStorage.setItem(
+        data.key,
+        typeof data.value === "string" ? data.value : JSON.stringify(data.value)
+      );
+      useSettingsStore.setState({ [data.key]: data.value });
     }
   });
 }

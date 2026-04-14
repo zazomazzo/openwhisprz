@@ -1,5 +1,24 @@
+// KDE/GNOME Wayland: self-relaunch with --ozone-platform=x11 to force XWayland.
+// Chromium picks the display backend before JS runs, so appendSwitch is too late.
+if (
+  process.platform === "linux" &&
+  process.env.XDG_SESSION_TYPE === "wayland" &&
+  !process.argv.includes("--ozone-platform=x11")
+) {
+  const desktop = (process.env.XDG_CURRENT_DESKTOP || "").toLowerCase();
+  if (desktop.includes("kde") || /gnome|ubuntu|unity/.test(desktop)) {
+    const { spawn } = require("child_process");
+    spawn(process.execPath, [...process.argv.slice(1), "--ozone-platform=x11"], {
+      stdio: "inherit",
+      detached: true,
+    }).unref();
+    process.exit(0);
+  }
+}
+
 const {
   app,
+  desktopCapturer,
   globalShortcut,
   BrowserWindow,
   dialog,
@@ -62,6 +81,13 @@ function configureChannelUserDataPath() {
 
 configureChannelUserDataPath();
 
+// Load userData .env (contains DICTATION_KEY, API keys, etc.) early — before
+// hotkey registration, which needs DICTATION_KEY before the renderer loads.
+require("dotenv").config({
+  path: path.join(app.getPath("userData"), ".env"),
+  override: false,
+});
+
 // Fix transparent window flickering on Linux: --enable-transparent-visuals requires
 // the compositor to set up an ARGB visual before any windows are created.
 // --disable-gpu-compositing prevents GPU compositing conflicts with the compositor.
@@ -75,14 +101,11 @@ if (process.platform === "win32") {
   app.commandLine.appendSwitch("disable-gpu-compositing");
 }
 
-// Enable native Wayland support: Ozone platform for native rendering,
-// and GlobalShortcutsPortal for global shortcuts via xdg-desktop-portal
+// Wayland: packaged builds use the wrapper script (scripts/afterPack.js) to
+// force --ozone-platform=x11 before Electron starts. appendSwitch below is a
+// best-effort fallback for unpackaged dev mode (may not take effect on E39+).
 if (process.platform === "linux" && process.env.XDG_SESSION_TYPE === "wayland") {
-  app.commandLine.appendSwitch("ozone-platform-hint", "auto");
-  app.commandLine.appendSwitch(
-    "enable-features",
-    "UseOzonePlatform,WaylandWindowDecorations,GlobalShortcutsPortal"
-  );
+  app.commandLine.appendSwitch("enable-features", "WaylandWindowDecorations");
 }
 
 // Set desktop filename so Wayland compositors can match windows to the .desktop entry.
@@ -183,6 +206,8 @@ const WhisperCudaManager = require("./src/helpers/whisperCudaManager");
 const GoogleCalendarManager = require("./src/helpers/googleCalendarManager");
 const MeetingProcessDetector = require("./src/helpers/meetingProcessDetector");
 const AudioActivityDetector = require("./src/helpers/audioActivityDetector");
+const AudioTapManager = require("./src/helpers/audioTapManager");
+const LinuxPortalAudioManager = require("./src/helpers/linuxPortalAudioManager");
 const MeetingDetectionEngine = require("./src/helpers/meetingDetectionEngine");
 const { i18nMain, changeLanguage } = require("./src/helpers/i18nMain");
 const { ensureYdotool } = require("./src/helpers/ensureYdotool");
@@ -204,6 +229,9 @@ let textEditMonitor = null;
 let whisperCudaManager = null;
 let googleCalendarManager = null;
 let meetingDetectionEngine = null;
+let audioTapManager = null;
+let linuxPortalAudioManager = null;
+let qdrantManager = null;
 let ipcHandlers = null;
 let globeKeyAlertShown = false;
 let authBridgeServer = null;
@@ -277,8 +305,11 @@ function initializeCoreManagers() {
   );
   windowManager.meetingDetectionEngine = meetingDetectionEngine;
   updateManager = new UpdateManager();
+  updateManager.setWindowManager(windowManager);
   windowsKeyManager = new WindowsKeyManager();
   textEditMonitor = new TextEditMonitor();
+  audioTapManager = new AudioTapManager();
+  linuxPortalAudioManager = new LinuxPortalAudioManager();
   windowManager.textEditMonitor = textEditMonitor;
 
   // IPC handlers must be registered before window content loads
@@ -295,6 +326,8 @@ function initializeCoreManagers() {
     whisperCudaManager,
     googleCalendarManager,
     meetingDetectionEngine,
+    audioTapManager,
+    linuxPortalAudioManager,
     getTrayManager: () => trayManager,
   });
 }
@@ -519,32 +552,9 @@ async function startApp() {
     }
   );
 
-  // Handle getDisplayMedia() calls from the renderer — auto-select the first
-  // screen source with loopback audio so no system picker dialog is shown.
-  const { desktopCapturer } = require("electron");
-  session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
-    try {
-      const sources = await desktopCapturer.getSources({ types: ["screen"] });
-      debugLogger.debug("Display media sources", {
-        count: sources.length,
-        names: sources.map((s) => s.name),
-      });
-      if (!sources.length) {
-        debugLogger.error(
-          "No screen sources available — Screen Recording permission may be denied"
-        );
-        callback({});
-        return;
-      }
-      callback({ video: sources[0], audio: "loopback" });
-    } catch (err) {
-      debugLogger.error("Display media handler error", { error: err.message });
-      callback({});
-    }
-  });
-
   windowManager.setActivationModeCache(environmentManager.getActivationMode());
   windowManager.setFloatingIconAutoHide(environmentManager.getFloatingIconAutoHide());
+  windowManager.setPanelStartPosition(environmentManager.getPanelStartPosition());
 
   ipcMain.on("activation-mode-changed", (_event, mode) => {
     windowManager.setActivationModeCache(mode);
@@ -567,6 +577,7 @@ async function startApp() {
 
   ipcMain.on("panel-start-position-changed", (_event, position) => {
     windowManager.setPanelStartPosition(position);
+    environmentManager.savePanelStartPosition(position);
   });
 
   if (process.platform === "darwin") {
@@ -597,16 +608,45 @@ async function startApp() {
 
   const savedAgentKey = environmentManager.getAgentKey?.() || "";
   if (savedAgentKey) {
-    hotkeyManager.registerSlot("agent", savedAgentKey, agentHotkeyCallback);
+    const result = await hotkeyManager.registerSlot("agent", savedAgentKey, agentHotkeyCallback);
+    if (!result.success) {
+      debugLogger.warn("Failed to restore agent hotkey", { hotkey: savedAgentKey }, "hotkey");
+    }
   }
 
-  ipcMain.on("agent-hotkey-changed", (_event, hotkey) => {
+  // Set up meeting mode hotkey
+  const meetingHotkeyCallback = () => {
+    if (hotkeyManager.isInListeningMode()) return;
+    debugLogger.info("Meeting hotkey triggered", {}, "meeting");
+    meetingDetectionEngine?.startManualMeeting();
+  };
+
+  const savedMeetingKey = environmentManager.getMeetingKey?.() || "";
+  if (savedMeetingKey) {
+    const result = await hotkeyManager.registerSlot(
+      "meeting",
+      savedMeetingKey,
+      meetingHotkeyCallback
+    );
+    debugLogger.info(
+      "Meeting hotkey startup registration",
+      { savedMeetingKey, ...result },
+      "meeting"
+    );
+  }
+
+  ipcMain.handle("register-meeting-hotkey", async (_event, hotkey) => {
     if (hotkey) {
-      hotkeyManager.registerSlot("agent", hotkey, agentHotkeyCallback);
-      environmentManager.saveAgentKey(hotkey);
+      const result = await hotkeyManager.registerSlot("meeting", hotkey, meetingHotkeyCallback);
+      if (result.success) {
+        environmentManager.saveMeetingKey(hotkey);
+        return { success: true };
+      }
+      return { success: false, message: result.error };
     } else {
-      hotkeyManager.unregisterSlot("agent");
-      environmentManager.saveAgentKey("");
+      hotkeyManager.unregisterSlot("meeting");
+      environmentManager.saveMeetingKey("");
+      return { success: true };
     }
   });
 
@@ -646,6 +686,32 @@ async function startApp() {
     const modelManager = require("./src/helpers/modelManagerBridge").default;
     modelManager.prewarmServer(process.env.LOCAL_REASONING_MODEL).catch((err) => {
       debugLogger.debug("llama-server pre-warm error (non-fatal)", { error: err.message });
+    });
+  }
+
+  const QdrantManager = require("./src/helpers/qdrantManager");
+  qdrantManager = new QdrantManager();
+  if (qdrantManager.isAvailable()) {
+    qdrantManager
+      .start()
+      .then(() => {
+        if (qdrantManager.isReady()) {
+          const vectorIndex = require("./src/helpers/vectorIndex");
+          vectorIndex.init(qdrantManager.getPort());
+          vectorIndex.ensureCollection().catch((err) => {
+            debugLogger.debug("Qdrant collection setup error (non-fatal)", { error: err.message });
+          });
+        }
+      })
+      .catch((err) => {
+        debugLogger.debug("Qdrant startup error (non-fatal)", { error: err.message });
+      });
+  }
+
+  const localEmbeddings = require("./src/helpers/localEmbeddings");
+  if (!localEmbeddings.isAvailable()) {
+    localEmbeddings.downloadModel().catch((err) => {
+      debugLogger.debug("Embedding model download error (non-fatal)", { error: err.message });
     });
   }
 
@@ -826,15 +892,12 @@ async function startApp() {
     globeKeyManager.start();
 
     // After starting globe-listener, check if accessibility is granted.
-    // If not, notify both windows so they can prompt the user.
+    // If not, notify the control panel so it can prompt the user.
     const checkAndNotifyAccessibility = () => {
       if (!systemPreferences.isTrustedAccessibilityClient(false)) {
         debugLogger.info("[Accessibility] macOS accessibility not trusted — notifying renderers");
         if (isLiveWindow(windowManager.controlPanelWindow)) {
           windowManager.controlPanelWindow.webContents.send("accessibility-missing");
-        }
-        if (isLiveWindow(windowManager.mainWindow)) {
-          windowManager.mainWindow.webContents.send("accessibility-missing");
         }
       }
     };
@@ -1018,6 +1081,14 @@ if (gotSingleInstanceLock) {
       return new Promise((resolve) => setTimeout(resolve, delay));
     })
     .then(() => {
+      if (process.platform === "win32") {
+        session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+          desktopCapturer.getSources({ types: ["screen"] }).then((sources) => {
+            callback({ video: sources[0], audio: "loopback" });
+          });
+        });
+      }
+
       startApp().catch((error) => {
         console.error("Failed to start app:", error);
         dialog.showErrorBox(
@@ -1089,6 +1160,9 @@ if (gotSingleInstanceLock) {
     if (windowManager && isLiveWindow(windowManager.agentWindow)) {
       windowManager.agentWindow.destroy();
     }
+    if (windowManager && isLiveWindow(windowManager.transcriptionPreviewWindow)) {
+      windowManager.transcriptionPreviewWindow.destroy();
+    }
     if (hotkeyManager) {
       hotkeyManager.unregisterAll();
     } else {
@@ -1105,6 +1179,12 @@ if (gotSingleInstanceLock) {
     }
     if (googleCalendarManager) {
       googleCalendarManager.stop();
+    }
+    if (audioTapManager) {
+      audioTapManager.stop().catch(() => {});
+    }
+    if (linuxPortalAudioManager) {
+      linuxPortalAudioManager.stop().catch(() => {});
     }
     if (ipcHandlers) {
       ipcHandlers._cleanupTextEditMonitor();
@@ -1126,5 +1206,8 @@ if (gotSingleInstanceLock) {
     // Stop llama-server if running
     const modelManager = require("./src/helpers/modelManagerBridge").default;
     modelManager.stopServer().catch(() => {});
+    if (qdrantManager) {
+      qdrantManager.stop().catch(() => {});
+    }
   });
 }

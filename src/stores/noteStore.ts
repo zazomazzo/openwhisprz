@@ -18,6 +18,7 @@ const useNoteStore = create<NoteState>()(() => ({
 let hasBoundIpcListeners = false;
 const DEFAULT_LIMIT = 50;
 let currentLimit = DEFAULT_LIMIT;
+let loadGeneration = 0;
 
 function ensureIpcListeners() {
   if (hasBoundIpcListeners || typeof window === "undefined") {
@@ -69,9 +70,11 @@ export async function initializeNotes(
   limit = DEFAULT_LIMIT,
   folderId?: number | null
 ): Promise<NoteItem[]> {
+  const gen = ++loadGeneration;
   currentLimit = limit;
   ensureIpcListeners();
   const items = (await window.electronAPI?.getNotes(noteType, limit, folderId)) ?? [];
+  if (gen !== loadGeneration) return items;
   useNoteStore.setState({ notes: items });
   return items;
 }
@@ -94,10 +97,16 @@ export function updateNoteInStore(note: NoteItem): void {
 
 export function removeNote(id: number): void {
   if (id == null) return;
-  const { notes } = useNoteStore.getState();
+  const { notes, activeNoteId } = useNoteStore.getState();
   const next = notes.filter((item) => item.id !== id);
   if (next.length === notes.length) return;
-  useNoteStore.setState({ notes: next });
+  const update: Partial<NoteState> = { notes: next };
+  if (activeNoteId === id) {
+    const idx = notes.findIndex((item) => item.id === id);
+    const neighbor = next[Math.min(idx, next.length - 1)] ?? null;
+    update.activeNoteId = neighbor?.id ?? null;
+  }
+  useNoteStore.setState(update);
 }
 
 export function setActiveNoteId(id: number | null): void {

@@ -12,6 +12,8 @@ const {
   CONTROL_PANEL_CONFIG,
   AGENT_OVERLAY_CONFIG,
   NOTIFICATION_WINDOW_CONFIG,
+  TRANSCRIPTION_PREVIEW_CONFIG,
+  TRANSCRIPTION_PREVIEW_SIZE_LIMITS,
   WINDOW_SIZES,
   WindowPositionUtil,
 } = require("./windowConfig");
@@ -23,6 +25,9 @@ class WindowManager {
     this.agentWindow = null;
     this.notificationWindow = null;
     this._notificationTimeout = null;
+    this.transcriptionPreviewWindow = null;
+    this.updateNotificationWindow = null;
+    this._updateNotificationDismissed = false;
     this.tray = null;
     this.hotkeyManager = new HotkeyManager();
     this.dragManager = new DragManager();
@@ -38,11 +43,13 @@ class WindowManager {
 
     app.on("before-quit", () => {
       this.isQuitting = true;
+      this.hotkeyManager.unregisterAll();
     });
   }
 
   async createMainWindow() {
-    const display = screen.getPrimaryDisplay();
+    const cursorPos = screen.getCursorScreenPoint();
+    const display = screen.getDisplayNearestPoint(cursorPos);
     const position = WindowPositionUtil.getMainWindowPosition(
       display,
       null,
@@ -89,7 +96,7 @@ class WindowManager {
     await this.loadMainWindow();
     await this.initializeHotkey();
     this.dragManager.setTargetWindow(this.mainWindow);
-    MenuManager.setupMainMenu();
+    MenuManager.setupMainMenu(() => this.openSettings());
   }
 
   setMainWindowInteractivity(shouldCapture) {
@@ -488,6 +495,18 @@ class WindowManager {
     return this.hotkeyManager.isUsingGnome();
   }
 
+  isUsingHyprlandHotkeys() {
+    return this.hotkeyManager.isUsingHyprland();
+  }
+
+  isUsingKDEHotkeys() {
+    return this.hotkeyManager.isUsingKDE();
+  }
+
+  isUsingNativeShortcutHotkeys() {
+    return this.hotkeyManager.isUsingNativeShortcut();
+  }
+
   async startWindowDrag() {
     return await this.dragManager.startWindowDrag();
   }
@@ -584,7 +603,7 @@ class WindowManager {
       this.controlPanelWindow = null;
     });
 
-    MenuManager.setupControlPanelMenu(this.controlPanelWindow);
+    MenuManager.setupControlPanelMenu(this.controlPanelWindow, () => this.openSettings());
 
     this.controlPanelWindow.webContents.on("did-finish-load", () => {
       clearVisibilityTimer();
@@ -644,6 +663,10 @@ class WindowManager {
       WindowPositionUtil.setupAlwaysOnTop(this.agentWindow);
     });
 
+    this.agentWindow.webContents.on("did-finish-load", () => {
+      this.agentWindow.setTitle(i18nMain.t("window.agentChatTitle"));
+    });
+
     this.agentWindow.on("closed", () => {
       this.agentWindow = null;
     });
@@ -697,8 +720,6 @@ class WindowManager {
     } else {
       this.agentWindow.show();
     }
-
-    this.agentWindow.webContents.send("agent-start-recording");
   }
 
   hideAgentOverlay() {
@@ -707,6 +728,120 @@ class WindowManager {
     this._clearAgentAnimation();
     this.agentWindow.webContents.send("agent-stop-recording");
     this.agentWindow.hide();
+  }
+
+  async ensureTranscriptionPreviewWindow() {
+    if (this.transcriptionPreviewWindow && !this.transcriptionPreviewWindow.isDestroyed()) {
+      return;
+    }
+
+    this.transcriptionPreviewWindow = new BrowserWindow(TRANSCRIPTION_PREVIEW_CONFIG);
+
+    this.transcriptionPreviewWindow.on("closed", () => {
+      this.transcriptionPreviewWindow = null;
+    });
+
+    if (process.env.NODE_ENV === "development") {
+      await DevServerManager.waitForDevServer();
+      await this.transcriptionPreviewWindow.loadURL(
+        `${DevServerManager.DEV_SERVER_URL}?transcription-preview=true`
+      );
+    } else {
+      const fileInfo = DevServerManager.getAppFilePath(false);
+      await this.transcriptionPreviewWindow.loadFile(fileInfo.path, {
+        query: { ...fileInfo.query, "transcription-preview": "true" },
+      });
+    }
+  }
+
+  async showTranscriptionPreview(text) {
+    await this.ensureTranscriptionPreviewWindow();
+
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+
+    const mainBounds =
+      this.mainWindow && !this.mainWindow.isDestroyed() ? this.mainWindow.getBounds() : null;
+
+    if (mainBounds) {
+      const display = screen.getDisplayNearestPoint({ x: mainBounds.x, y: mainBounds.y });
+      const position = WindowPositionUtil.getTranscriptionPreviewPosition(display, mainBounds, {
+        width: TRANSCRIPTION_PREVIEW_CONFIG.width,
+        height: TRANSCRIPTION_PREVIEW_CONFIG.height,
+      });
+      this.transcriptionPreviewWindow.setBounds(position);
+    }
+
+    this.transcriptionPreviewWindow.webContents.send("preview-text", text);
+    this.transcriptionPreviewWindow.showInactive();
+    WindowPositionUtil.setupAlwaysOnTop(this.transcriptionPreviewWindow);
+  }
+
+  appendTranscriptionPreview(text) {
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+    this.transcriptionPreviewWindow.webContents.send("preview-append", text);
+  }
+
+  holdTranscriptionPreview(options = {}) {
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+    this.transcriptionPreviewWindow.webContents.send("preview-hold", {
+      showCleanup: !!options.showCleanup,
+    });
+  }
+
+  completeTranscriptionPreview(text) {
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+    this.transcriptionPreviewWindow.webContents.send("preview-result", { text });
+    this.transcriptionPreviewWindow.showInactive();
+    WindowPositionUtil.setupAlwaysOnTop(this.transcriptionPreviewWindow);
+  }
+
+  hideTranscriptionPreview() {
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+
+    this.transcriptionPreviewWindow.webContents.send("preview-hide");
+    setTimeout(() => {
+      if (this.transcriptionPreviewWindow && !this.transcriptionPreviewWindow.isDestroyed()) {
+        this.transcriptionPreviewWindow.hide();
+      }
+    }, 200);
+  }
+
+  resizeTranscriptionPreview(width, height) {
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) {
+      return { success: false, error: "Preview window not available" };
+    }
+
+    const targetWidth = Math.max(
+      TRANSCRIPTION_PREVIEW_SIZE_LIMITS.minWidth,
+      Math.min(Math.round(width), TRANSCRIPTION_PREVIEW_SIZE_LIMITS.maxWidth)
+    );
+    const targetHeight = Math.max(
+      TRANSCRIPTION_PREVIEW_SIZE_LIMITS.minHeight,
+      Math.min(Math.round(height), TRANSCRIPTION_PREVIEW_SIZE_LIMITS.maxHeight)
+    );
+
+    const anchorBounds =
+      this.mainWindow && !this.mainWindow.isDestroyed()
+        ? this.mainWindow.getBounds()
+        : this.transcriptionPreviewWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({ x: anchorBounds.x, y: anchorBounds.y });
+    const bounds = WindowPositionUtil.getTranscriptionPreviewPosition(display, anchorBounds, {
+      width: targetWidth,
+      height: targetHeight,
+    });
+
+    const currentBounds = this.transcriptionPreviewWindow.getBounds();
+    if (
+      currentBounds.x === bounds.x &&
+      currentBounds.y === bounds.y &&
+      currentBounds.width === bounds.width &&
+      currentBounds.height === bounds.height
+    ) {
+      return { success: true, bounds };
+    }
+
+    this.transcriptionPreviewWindow.setBounds(bounds);
+    return { success: true, bounds };
   }
 
   resizeAgentWindow(width, height) {
@@ -824,9 +959,37 @@ class WindowManager {
     this.agentWindow.setBounds(bounds);
   }
 
+  _repositionToCursorDisplay() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+
+    const cursorPos = screen.getCursorScreenPoint();
+    const cursorDisplay = screen.getDisplayNearestPoint(cursorPos);
+
+    const currentBounds = this.mainWindow.getBounds();
+    const currentDisplay = screen.getDisplayNearestPoint({
+      x: currentBounds.x + currentBounds.width / 2,
+      y: currentBounds.y + currentBounds.height / 2,
+    });
+
+    if (currentDisplay.id === cursorDisplay.id) return;
+
+    const newPos = WindowPositionUtil.getMainWindowPosition(
+      cursorDisplay,
+      { width: currentBounds.width, height: currentBounds.height },
+      this._panelStartPosition
+    );
+    this.mainWindow.setBounds(newPos);
+  }
+
   showDictationPanel(options = {}) {
     const { focus = false } = options;
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      const wasHidden = !this.mainWindow.isVisible() || this.mainWindow.isMinimized();
+
+      if (wasHidden) {
+        this._repositionToCursorDisplay();
+      }
+
       if (this.mainWindow.isMinimized()) {
         this.mainWindow.restore();
       }
@@ -942,6 +1105,8 @@ class WindowManager {
 
     WindowPositionUtil.setupAlwaysOnTop(this.notificationWindow);
 
+    this._pendingNotificationData = promptData;
+
     if (process.env.NODE_ENV === "development") {
       await DevServerManager.waitForDevServer();
       await this.notificationWindow.loadURL(
@@ -953,8 +1118,6 @@ class WindowManager {
         query: { ...fileInfo.query, "meeting-notification": "true" },
       });
     }
-
-    this._pendingNotificationData = promptData;
 
     this._notificationReadyFallback = setTimeout(() => {
       this._notificationReadyFallback = null;
@@ -1011,6 +1174,79 @@ class WindowManager {
     this.notificationWindow = null;
   }
 
+  async showUpdateNotification(info) {
+    if (this._updateNotificationDismissed) return;
+    if (this.updateNotificationWindow && !this.updateNotificationWindow.isDestroyed()) {
+      this.updateNotificationWindow.close();
+      this.updateNotificationWindow = null;
+    }
+
+    const display = screen.getPrimaryDisplay();
+    const position = WindowPositionUtil.getNotificationPosition(display);
+
+    this.updateNotificationWindow = new BrowserWindow({
+      ...NOTIFICATION_WINDOW_CONFIG,
+      ...position,
+    });
+
+    WindowPositionUtil.setupAlwaysOnTop(this.updateNotificationWindow);
+
+    if (process.env.NODE_ENV === "development") {
+      await DevServerManager.waitForDevServer();
+      await this.updateNotificationWindow.loadURL(
+        `${DevServerManager.DEV_SERVER_URL}?update-notification=true`
+      );
+    } else {
+      const fileInfo = DevServerManager.getAppFilePath(false);
+      await this.updateNotificationWindow.loadFile(fileInfo.path, {
+        query: { ...fileInfo.query, "update-notification": "true" },
+      });
+    }
+
+    this._pendingUpdateNotificationData = {
+      version: info?.version,
+      releaseDate: info?.releaseDate,
+    };
+
+    this._updateNotificationReadyFallback = setTimeout(() => {
+      this._updateNotificationReadyFallback = null;
+      if (this.updateNotificationWindow && !this.updateNotificationWindow.isDestroyed()) {
+        this.updateNotificationWindow.webContents.send(
+          "update-notification-data",
+          this._pendingUpdateNotificationData
+        );
+        this.updateNotificationWindow.showInactive();
+      }
+    }, 3000);
+
+    this.updateNotificationWindow.on("closed", () => {
+      this.updateNotificationWindow = null;
+    });
+  }
+
+  showUpdateNotificationWindow() {
+    if (this._updateNotificationReadyFallback) {
+      clearTimeout(this._updateNotificationReadyFallback);
+      this._updateNotificationReadyFallback = null;
+    }
+    if (this.updateNotificationWindow && !this.updateNotificationWindow.isDestroyed()) {
+      this.updateNotificationWindow.showInactive();
+    }
+  }
+
+  dismissUpdateNotification() {
+    this._pendingUpdateNotificationData = null;
+    this._updateNotificationDismissed = true;
+    if (this._updateNotificationReadyFallback) {
+      clearTimeout(this._updateNotificationReadyFallback);
+      this._updateNotificationReadyFallback = null;
+    }
+    if (this.updateNotificationWindow && !this.updateNotificationWindow.isDestroyed()) {
+      this.updateNotificationWindow.close();
+    }
+    this.updateNotificationWindow = null;
+  }
+
   sendToControlPanel(channel, data) {
     const win = this.controlPanelWindow;
     if (!win || win.isDestroyed()) return;
@@ -1053,15 +1289,26 @@ class WindowManager {
   }
 
   refreshLocalizedUi() {
-    MenuManager.setupMainMenu();
+    MenuManager.setupMainMenu(() => this.openSettings());
 
     if (this.controlPanelWindow && !this.controlPanelWindow.isDestroyed()) {
-      MenuManager.setupControlPanelMenu(this.controlPanelWindow);
+      MenuManager.setupControlPanelMenu(this.controlPanelWindow, () => this.openSettings());
       this.controlPanelWindow.setTitle(i18nMain.t("window.controlPanelTitle"));
     }
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.setTitle(i18nMain.t("window.voiceRecorderTitle"));
+    }
+
+    if (this.agentWindow && !this.agentWindow.isDestroyed()) {
+      this.agentWindow.setTitle(i18nMain.t("window.agentChatTitle"));
+    }
+  }
+
+  async openSettings() {
+    await this.createControlPanelWindow();
+    if (this.controlPanelWindow && !this.controlPanelWindow.isDestroyed()) {
+      this.controlPanelWindow.webContents.send("show-settings");
     }
   }
 

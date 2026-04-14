@@ -6,7 +6,7 @@ import UpgradePrompt from "./UpgradePrompt";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useDialogs } from "../hooks/useDialogs";
 import { useHotkey } from "../hooks/useHotkey";
-import { useToast } from "./ui/Toast";
+import { useToast } from "./ui/useToast";
 import { useUpdater } from "../hooks/useUpdater";
 import { useSettings } from "../hooks/useSettings";
 import { useAuth } from "../hooks/useAuth";
@@ -18,11 +18,13 @@ import {
   updateTranscription as updateInStore,
   clearTranscriptions as clearStore,
 } from "../stores/transcriptionStore";
+import { useSettingsStore } from "../stores/settingsStore";
 import ControlPanelSidebar, { type ControlPanelView } from "./ControlPanelSidebar";
 import WindowControls from "./WindowControls";
 
 import { getCachedPlatform } from "../utils/platform";
-import { setActiveNoteId, setActiveFolderId } from "../stores/noteStore";
+import { isAccessibilitySkipped } from "../utils/permissions";
+import { setActiveNoteId, setActiveFolderId, initializeNotes } from "../stores/noteStore";
 import HistoryView from "./HistoryView";
 
 const platform = getCachedPlatform();
@@ -33,6 +35,7 @@ const PersonalNotesView = React.lazy(() => import("./notes/PersonalNotesView"));
 const DictionaryView = React.lazy(() => import("./DictionaryView"));
 const UploadAudioView = React.lazy(() => import("./notes/UploadAudioView"));
 const IntegrationsView = React.lazy(() => import("./IntegrationsView"));
+const ChatView = React.lazy(() => import("./chat/ChatView"));
 const CommandSearch = React.lazy(() => import("./CommandSearch"));
 
 export default function ControlPanel() {
@@ -65,6 +68,8 @@ export default function ControlPanel() {
     () => localStorage.getItem("gpuBannerDismissedUnified") === "true"
   );
   const cloudMigrationProcessed = useRef(false);
+  const updateReadyToastShown = useRef(false);
+  const updateErrorToastShown = useRef<Error | null>(null);
   const { hotkey } = useHotkey();
   const { toast } = useToast();
   const {
@@ -98,7 +103,7 @@ export default function ControlPanel() {
 
   useEffect(() => {
     loadTranscriptions();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -106,6 +111,9 @@ export default function ControlPanel() {
       if (mod && e.key === "k") {
         e.preventDefault();
         setShowSearch(true);
+      } else if (mod && e.key === ",") {
+        e.preventDefault();
+        setShowSettings(true);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -114,21 +122,30 @@ export default function ControlPanel() {
 
   useEffect(() => {
     if (updateStatus.updateDownloaded && !isDownloading) {
-      toast({
-        title: t("controlPanel.update.readyTitle"),
-        description: t("controlPanel.update.readyDescription"),
-        variant: "success",
-      });
+      if (!updateReadyToastShown.current) {
+        updateReadyToastShown.current = true;
+        toast({
+          title: t("controlPanel.update.readyTitle"),
+          description: t("controlPanel.update.readyDescription"),
+          variant: "success",
+        });
+      }
+    } else {
+      updateReadyToastShown.current = false;
     }
   }, [updateStatus.updateDownloaded, isDownloading, toast, t]);
 
   useEffect(() => {
-    if (updateError) {
+    if (updateError && updateError !== updateErrorToastShown.current) {
+      updateErrorToastShown.current = updateError;
       toast({
         title: t("controlPanel.update.problemTitle"),
         description: t("controlPanel.update.problemDescription"),
         variant: "destructive",
       });
+    }
+    if (!updateError) {
+      updateErrorToastShown.current = null;
     }
   }, [updateError, toast, t]);
 
@@ -210,6 +227,23 @@ export default function ControlPanel() {
       setActiveView("personal-notes");
       setIsMeetingMode(true);
       setMeetingRecordingRequest(data);
+      initializeNotes(null, 50, data.folderId);
+    });
+    return () => cleanup?.();
+  }, []);
+
+  useEffect(() => {
+    const cleanup = window.electronAPI?.onNavigateToNote?.((data) => {
+      if (data.folderId) setActiveFolderId(data.folderId);
+      setActiveNoteId(data.noteId);
+      setActiveView("personal-notes");
+    });
+    return () => cleanup?.();
+  }, []);
+
+  useEffect(() => {
+    const cleanup = window.electronAPI?.onShowSettings?.(() => {
+      setShowSettings(true);
     });
     return () => cleanup?.();
   }, []);
@@ -217,7 +251,7 @@ export default function ControlPanel() {
   // When accessibility is missing on macOS, open the permissions settings page
   useEffect(() => {
     const cleanup = window.electronAPI?.onAccessibilityMissing?.(() => {
-      if (localStorage.getItem("accessibilitySkipped") === "true") {
+      if (isAccessibilitySkipped()) {
         return;
       }
       setSettingsSection("privacyData");
@@ -359,7 +393,20 @@ export default function ControlPanel() {
   const retryTranscription = useCallback(
     async (id: number) => {
       try {
-        const result = await window.electronAPI.retryTranscription(id);
+        const s = useSettingsStore.getState();
+        const result = await window.electronAPI.retryTranscription(id, {
+          useLocalWhisper: s.useLocalWhisper,
+          localTranscriptionProvider: s.localTranscriptionProvider,
+          cloudTranscriptionMode: s.cloudTranscriptionMode,
+          cloudTranscriptionProvider: s.cloudTranscriptionProvider,
+          cloudTranscriptionModel: s.cloudTranscriptionModel,
+          cloudTranscriptionBaseUrl: s.cloudTranscriptionBaseUrl,
+          parakeetModel: s.parakeetModel,
+          whisperModel: s.whisperModel,
+          transcriptionMode: s.transcriptionMode,
+          remoteTranscriptionType: s.remoteTranscriptionType,
+          remoteTranscriptionUrl: s.remoteTranscriptionUrl,
+        });
         if (result.success && result.transcription) {
           const rawText = result.transcription.text;
           let finalTranscription = result.transcription;
@@ -531,7 +578,8 @@ export default function ControlPanel() {
             open={showSearch}
             onOpenChange={setShowSearch}
             transcriptions={history}
-            onNoteSelect={(id) => {
+            onNoteSelect={(id, folderId) => {
+              if (folderId) setActiveFolderId(folderId);
               setActiveNoteId(id);
               setActiveView("personal-notes");
             }}
@@ -605,7 +653,7 @@ export default function ControlPanel() {
                   className="h-7 px-2.5 pl-1.5 gap-1"
                 >
                   <ChevronLeft size={14} strokeWidth={1.8} />
-                  Back to notes
+                  {t("controlPanel.backToNotes")}
                 </Button>
               </div>
             )}
@@ -715,6 +763,11 @@ export default function ControlPanel() {
                 }}
               />
             )}
+            {activeView === "chat" && (
+              <Suspense fallback={null}>
+                <ChatView />
+              </Suspense>
+            )}
             {activeView === "personal-notes" && (
               <Suspense fallback={null}>
                 <PersonalNotesView
@@ -722,6 +775,7 @@ export default function ControlPanel() {
                     setSettingsSection(section);
                     setShowSettings(true);
                   }}
+                  onOpenSearch={() => setShowSearch(true)}
                   meetingRecordingRequest={meetingRecordingRequest}
                   onMeetingRecordingRequestHandled={handleMeetingRecordingRequestHandled}
                   isMeetingMode={isMeetingMode}

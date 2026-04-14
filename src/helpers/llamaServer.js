@@ -136,7 +136,6 @@ class LlamaServerManager {
     this.port = await this.findAvailablePort();
     this.modelPath = modelPath;
 
-    // Let llama.cpp's auto-fit system choose --ctx-size based on available GPU memory
     const baseArgs = [
       "--model",
       modelPath,
@@ -146,6 +145,7 @@ class LlamaServerManager {
       String(this.port),
       "--threads",
       String(options.threads || 4),
+      "--jinja",
     ];
 
     if (process.platform === "darwin") {
@@ -213,6 +213,10 @@ class LlamaServerManager {
       env.LD_LIBRARY_PATH = binDir + (env.LD_LIBRARY_PATH ? `:${env.LD_LIBRARY_PATH}` : "");
     } else if (process.platform === "win32") {
       env.PATH = binDir + (env.PATH ? `;${env.PATH}` : "");
+    }
+
+    if (process.env.INTELLIGENCE_GPU_INDEX) {
+      env.CUDA_VISIBLE_DEVICES = process.env.INTELLIGENCE_GPU_INDEX;
     }
 
     return env;

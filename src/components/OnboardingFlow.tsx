@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
@@ -8,25 +8,21 @@ import {
   ChevronLeft,
   Check,
   Settings,
-  Mic,
   Shield,
   Command,
   UserCircle,
-  Monitor,
 } from "lucide-react";
 import TitleBar from "./TitleBar";
 import WindowControls from "./WindowControls";
-import PermissionCard from "./ui/PermissionCard";
+import PermissionsSection from "./ui/PermissionsSection";
 import SupportDropdown from "./ui/SupportDropdown";
-import MicPermissionWarning from "./ui/MicPermissionWarning";
-import PasteToolsInfo from "./ui/PasteToolsInfo";
 import StepProgress from "./ui/StepProgress";
 import { AlertDialog, ConfirmDialog } from "./ui/dialog";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
 import { useClipboard } from "../hooks/useClipboard";
-import { useScreenRecordingPermission } from "../hooks/useScreenRecordingPermission";
+import { useSystemAudioPermission } from "../hooks/useSystemAudioPermission";
 import { useSettings } from "../hooks/useSettings";
 import LanguageSelector from "./ui/LanguageSelector";
 import AuthenticationStep from "./AuthenticationStep";
@@ -41,6 +37,7 @@ import { getPlatform } from "../utils/platform";
 import logger from "../utils/logger";
 import { ActivationModeSelector } from "./ui/ActivationModeSelector";
 import TranscriptionModelPicker from "./TranscriptionModelPicker";
+import { ACCESSIBILITY_SKIPPED_KEY, areRequiredPermissionsMet } from "../utils/permissions";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -50,9 +47,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const { t } = useTranslation();
   const { isSignedIn } = useAuth();
 
-  // Max valid step index dynamically determined based on auth state
-  // Signed-in users: 3 steps (Welcome, Setup, Activation) - index 0-2
-  // Non-signed-in users: 4 steps (Welcome, Setup, Permissions, Activation) - index 0-3
   const getMaxStep = () => (isSignedIn ? 2 : 3);
 
   const [currentStep, setCurrentStep, removeCurrentStep] = useLocalStorage(
@@ -72,7 +66,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
   );
   const [accessibilitySkipped, setAccessibilitySkipped] = useLocalStorage(
-    "accessibilitySkipped",
+    ACCESSIBILITY_SKIPPED_KEY,
     false,
     {
       serialize: String,
@@ -109,7 +103,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [skipAuth, setSkipAuth] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
   const [isModelDownloaded, setIsModelDownloaded] = useState(false);
-  const [isUsingGnomeHotkeys, setIsUsingGnomeHotkeys] = useState(false);
+  const [isUsingNativeShortcut, setIsUsingNativeShortcut] = useState(false);
   const readableHotkey = formatHotkeyLabel(hotkey);
   const { alertDialog, confirmDialog, showAlertDialog, hideAlertDialog, hideConfirmDialog } =
     useDialogs();
@@ -134,7 +128,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const permissionsHook = usePermissions(showAlertDialog);
   useClipboard(showAlertDialog); // Initialize clipboard hook for permission checks
 
-  const screenRecording = useScreenRecordingPermission();
+  const systemAudio = useSystemAudioPermission();
 
   useEffect(() => {
     if (permissionsHook.accessibilityPermissionGranted && accessibilitySkipped) {
@@ -146,20 +140,23 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     setAccessibilitySkipped,
   ]);
 
-  // For signed-in users, merge setup and permissions into one step
-  const steps =
-    isSignedIn && !skipAuth
-      ? [
-          { title: t("onboarding.steps.welcome"), icon: UserCircle },
-          { title: t("onboarding.steps.setup"), icon: Settings },
-          { title: t("onboarding.steps.activation"), icon: Command },
-        ]
-      : [
-          { title: t("onboarding.steps.welcome"), icon: UserCircle },
-          { title: t("onboarding.steps.setup"), icon: Settings },
-          { title: t("onboarding.steps.permissions"), icon: Shield },
-          { title: t("onboarding.steps.activation"), icon: Command },
-        ];
+  // For signed-in users, permissions are folded into the "setup" step.
+  const steps = useMemo(
+    () =>
+      isSignedIn && !skipAuth
+        ? [
+            { id: "welcome", title: t("onboarding.steps.welcome"), icon: UserCircle },
+            { id: "setup", title: t("onboarding.steps.setup"), icon: Settings },
+            { id: "activation", title: t("onboarding.steps.activation"), icon: Command },
+          ]
+        : [
+            { id: "welcome", title: t("onboarding.steps.welcome"), icon: UserCircle },
+            { id: "setup", title: t("onboarding.steps.setup"), icon: Settings },
+            { id: "permissions", title: t("onboarding.steps.permissions"), icon: Shield },
+            { id: "activation", title: t("onboarding.steps.activation"), icon: Command },
+          ],
+    [isSignedIn, skipAuth, t]
+  );
 
   // Only show progress for signed-up users after account creation step
   const showProgress = currentStep > 0;
@@ -168,8 +165,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     const checkHotkeyMode = async () => {
       try {
         const info = await window.electronAPI?.getHotkeyModeInfo();
-        if (info?.isUsingGnome) {
-          setIsUsingGnomeHotkeys(true);
+        if (info?.isUsingNativeShortcut) {
+          setIsUsingNativeShortcut(true);
           setActivationMode("tap");
         }
       } catch (error) {
@@ -178,6 +175,18 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     };
     checkHotkeyMode();
   }, [setActivationMode]);
+
+  // Update wizard UI when backend falls back to a different hotkey.
+  // Only update local state — don't persist to localStorage so the app
+  // retries the preferred key on next launch.
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onHotkeyFallbackUsed?.((data: { fallback: string }) => {
+      if (data?.fallback) {
+        setHotkey(data.fallback);
+      }
+    });
+    return () => unsubscribe?.();
+  }, []);
 
   useEffect(() => {
     const modelToCheck = localTranscriptionProvider === "nvidia" ? parakeetModel : whisperModel;
@@ -223,8 +232,18 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       hotkeyStepInitializedRef.current = true;
 
       try {
-        // Get platform-appropriate default hotkey
-        const defaultHotkey = getDefaultHotkey();
+        // Check if backend already registered a hotkey (e.g., KDE D-Bus fallback)
+        const backendKey = localStorage.getItem("dictationKey");
+        if (backendKey && backendKey.trim() !== "") {
+          setHotkey(backendKey);
+          setDictationKey(backendKey);
+          return;
+        }
+
+        // Get platform-appropriate default hotkey from backend (accounts for
+        // X11 modifier-only and GNOME gsettings limitations)
+        const defaultHotkey =
+          (await window.electronAPI?.getEffectiveDefaultHotkey?.()) || getDefaultHotkey();
         const platform = window.electronAPI?.getPlatform?.() ?? "darwin";
 
         // Only auto-register if no hotkey is currently set
@@ -246,7 +265,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     };
 
     void autoRegisterDefaultHotkey();
-  }, [currentStep, hotkey, registerHotkey, activationStepIndex]);
+  }, [currentStep, hotkey, registerHotkey, activationStepIndex, setDictationKey]);
 
   const ensureHotkeyRegistered = useCallback(async () => {
     if (!window.electronAPI?.updateHotkey) {
@@ -306,6 +325,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     ensureHotkeyRegistered,
     isSignedIn,
     useLocalWhisper,
+    skipAuth,
     updateTranscriptionSettings,
   ]);
 
@@ -314,10 +334,15 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       return;
     }
 
-    const isMacOS = getPlatform() === "darwin";
-    const isPermissionsStep =
-      isSignedIn && !skipAuth ? currentStep === 1 : currentStep === 2;
-    if (isMacOS && isPermissionsStep && !permissionsHook.accessibilityPermissionGranted) {
+    // Signed-in users have permissions folded into the "setup" step.
+    const currentStepId = steps[currentStep]?.id;
+    const isPermissionsGate =
+      currentStepId === "permissions" || (currentStepId === "setup" && isSignedIn && !skipAuth);
+    if (
+      getPlatform() === "darwin" &&
+      isPermissionsGate &&
+      !permissionsHook.accessibilityPermissionGranted
+    ) {
       setAccessibilitySkipped(true);
     }
 
@@ -333,7 +358,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   }, [
     currentStep,
     setCurrentStep,
-    steps.length,
+    steps,
     activationStepIndex,
     isSignedIn,
     skipAuth,
@@ -387,16 +412,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         );
 
       case 1: // Setup - Choose Mode & Configure (merged with permissions for signed-in users)
-        // Simplified path for signed-in users (cloud-first) with permissions
         if (isSignedIn && !skipAuth) {
-          const platform = permissionsHook.pasteToolsInfo?.platform;
-          const isMacOS = platform === "darwin";
-
           return (
             <div className="space-y-6">
               <div className="text-center">
-                <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-7 h-7 text-emerald-600" />
+                <div className="w-14 h-14 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-7 h-7 text-green-500" />
                 </div>
                 <h2 className="text-2xl font-semibold text-foreground mb-2">
                   {t("onboarding.setup.title")}
@@ -425,61 +446,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 <h3 className="text-sm font-medium text-foreground">
                   {t("onboarding.permissions.title")}
                 </h3>
-                <div className="space-y-1.5">
-                  <PermissionCard
-                    icon={Mic}
-                    title={t("onboarding.permissions.microphoneTitle")}
-                    description={t("onboarding.permissions.microphoneDescription")}
-                    granted={permissionsHook.micPermissionGranted}
-                    onRequest={permissionsHook.requestMicPermission}
-                    buttonText={t("onboarding.permissions.grant")}
-                  />
-
-                  {isMacOS && (
-                    <>
-                      <PermissionCard
-                        icon={Shield}
-                        title={t("onboarding.permissions.accessibilityTitle")}
-                        description={t("onboarding.permissions.accessibilityDescription")}
-                        granted={permissionsHook.accessibilityPermissionGranted}
-                        onRequest={permissionsHook.testAccessibilityPermission}
-                        buttonText={t("onboarding.permissions.grant")}
-                        onOpenSettings={permissionsHook.openAccessibilitySettings}
-                        badge={t("onboarding.permissions.optional")}
-                      />
-                      <PermissionCard
-                        icon={Monitor}
-                        title={t("onboarding.permissions.screenRecordingTitle")}
-                        description={t("onboarding.permissions.screenRecordingDescription")}
-                        granted={screenRecording.granted}
-                        onRequest={screenRecording.request}
-                        buttonText={t("onboarding.permissions.grant")}
-                        onOpenSettings={screenRecording.openSettings}
-                        badge={t("onboarding.permissions.optional")}
-                      />
-                    </>
-                  )}
-                </div>
-
-                {/* Error state - only show when there's actually an issue */}
-                {!permissionsHook.micPermissionGranted && permissionsHook.micPermissionError && (
-                  <MicPermissionWarning
-                    error={permissionsHook.micPermissionError}
-                    onOpenSoundSettings={permissionsHook.openSoundInputSettings}
-                    onOpenPrivacySettings={permissionsHook.openMicPrivacySettings}
-                  />
-                )}
-
-                {/* Linux paste tools - only when needed */}
-                {platform === "linux" &&
-                  permissionsHook.pasteToolsInfo &&
-                  !permissionsHook.pasteToolsInfo.available && (
-                    <PasteToolsInfo
-                      pasteToolsInfo={permissionsHook.pasteToolsInfo}
-                      isChecking={permissionsHook.isCheckingPasteTools}
-                      onCheck={permissionsHook.checkPasteToolsAvailability}
-                    />
-                  )}
+                <PermissionsSection permissions={permissionsHook} systemAudio={systemAudio} />
               </div>
             </div>
           );
@@ -585,62 +552,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               </p>
             </div>
 
-            {/* Permission cards - tight stack */}
-            <div className="space-y-1.5">
-              <PermissionCard
-                icon={Mic}
-                title={t("onboarding.permissions.microphoneTitle")}
-                description={t("onboarding.permissions.microphoneDescription")}
-                granted={permissionsHook.micPermissionGranted}
-                onRequest={permissionsHook.requestMicPermission}
-                buttonText={t("onboarding.permissions.grant")}
-              />
-
-              {isMacOS && (
-                <>
-                  <PermissionCard
-                    icon={Shield}
-                    title={t("onboarding.permissions.accessibilityTitle")}
-                    description={t("onboarding.permissions.accessibilityDescription")}
-                    granted={permissionsHook.accessibilityPermissionGranted}
-                    onRequest={permissionsHook.testAccessibilityPermission}
-                    buttonText={t("onboarding.permissions.grant")}
-                    onOpenSettings={permissionsHook.openAccessibilitySettings}
-                    badge={t("onboarding.permissions.optional")}
-                  />
-                  <PermissionCard
-                    icon={Monitor}
-                    title={t("onboarding.permissions.screenRecordingTitle")}
-                    description={t("onboarding.permissions.screenRecordingDescription")}
-                    granted={screenRecording.granted}
-                    onRequest={screenRecording.request}
-                    buttonText={t("onboarding.permissions.grant")}
-                    onOpenSettings={screenRecording.openSettings}
-                    badge={t("onboarding.permissions.optional")}
-                  />
-                </>
-              )}
-            </div>
-
-            {/* Error state - only show when there's actually an issue */}
-            {!permissionsHook.micPermissionGranted && permissionsHook.micPermissionError && (
-              <MicPermissionWarning
-                error={permissionsHook.micPermissionError}
-                onOpenSoundSettings={permissionsHook.openSoundInputSettings}
-                onOpenPrivacySettings={permissionsHook.openMicPrivacySettings}
-              />
-            )}
-
-            {/* Linux paste tools - only when needed */}
-            {platform === "linux" &&
-              permissionsHook.pasteToolsInfo &&
-              !permissionsHook.pasteToolsInfo.available && (
-                <PasteToolsInfo
-                  pasteToolsInfo={permissionsHook.pasteToolsInfo}
-                  isChecking={permissionsHook.isCheckingPasteTools}
-                  onCheck={permissionsHook.checkPasteToolsAvailability}
-                />
-              )}
+            <PermissionsSection permissions={permissionsHook} systemAudio={systemAudio} />
           </div>
         );
 
@@ -686,7 +598,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         </div>
 
         {/* Mode section - inline with hotkey */}
-        {!isUsingGnomeHotkeys && (
+        {!isUsingNativeShortcut && (
           <div className="p-4 flex items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -714,7 +626,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             {t("onboarding.activation.test")}
           </span>
           <span className="text-xs text-muted-foreground/60">
-            {activationMode === "tap" || isUsingGnomeHotkeys
+            {activationMode === "tap" || isUsingNativeShortcut
               ? t("onboarding.activation.hotkeyToStartStop", { hotkey: readableHotkey })
               : t("onboarding.activation.holdHotkey", { hotkey: readableHotkey })}
           </span>
@@ -735,11 +647,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       case 1:
         // For signed-in users: Setup step includes permissions
         if (isSignedIn && !skipAuth) {
-          // Check permissions
-          if (!permissionsHook.micPermissionGranted) {
-            return false;
-          }
-          return true;
+          return areRequiredPermissionsMet(permissionsHook.micPermissionGranted);
         }
 
         // For non-signed-in users: Setup - check if configuration is complete
@@ -768,10 +676,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         }
 
         // For non-signed-in users, this is permissions step
-        if (!permissionsHook.micPermissionGranted) {
-          return false;
-        }
-        return true;
+        return areRequiredPermissionsMet(permissionsHook.micPermissionGranted);
       }
       case 3:
         return hotkey.trim() !== ""; // Activation step for non-signed-in users

@@ -1,157 +1,87 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "./lib/utils";
 import { AgentTitleBar } from "./agent/AgentTitleBar";
 import { AgentChat } from "./agent/AgentChat";
 import { AgentInput } from "./agent/AgentInput";
 import AudioManager from "../helpers/audioManager";
-import ReasoningService from "../services/ReasoningService";
-import { getSettings } from "../stores/settingsStore";
-import { getAgentSystemPrompt } from "../config/prompts";
-
-type AgentState = "idle" | "listening" | "transcribing" | "thinking" | "streaming";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  isStreaming: boolean;
-}
+import { useChatPersistence } from "./chat/useChatPersistence";
+import { useChatStreaming } from "./chat/useChatStreaming";
+import type { Message } from "./chat/types";
 
 const MIN_HEIGHT = 200;
 const MIN_WIDTH = 360;
 
 export default function AgentOverlay() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [agentState, setAgentState] = useState<AgentState>("idle");
+  const { t } = useTranslation();
   const [partialTranscript, setPartialTranscript] = useState("");
   const audioManagerRef = useRef<InstanceType<typeof AudioManager> | null>(null);
-  const messagesRef = useRef<Message[]>([]);
-  const agentStateRef = useRef<AgentState>("idle");
-  const conversationIdRef = useRef<number | null>(null);
+  const agentStateRef = useRef<string>("idle");
 
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
+  const persistence = useChatPersistence();
+  const { messages, setMessages, handleNewChat: persistenceNewChat } = persistence;
+
+  const streaming = useChatStreaming({
+    messages,
+    setMessages,
+    onStreamComplete: (_assistantId, content, toolCalls) => {
+      persistence.saveAssistantMessage(content, toolCalls);
+    },
+  });
+
+  const { agentState } = streaming;
 
   useEffect(() => {
     agentStateRef.current = agentState;
   }, [agentState]);
 
-  const addSystemMessage = useCallback((content: string) => {
-    setMessages((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), role: "assistant" as const, content, isStreaming: false },
-    ]);
-  }, []);
+  const addSystemMessage = useCallback(
+    (content: string) => {
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: "assistant" as const, content, isStreaming: false },
+      ]);
+    },
+    [setMessages]
+  );
 
-  const handleTranscriptionComplete = useCallback(async (text: string) => {
-    if (!text.trim()) {
-      setAgentState("idle");
-      return;
-    }
+  const handleTranscriptionComplete = useCallback(
+    async (text: string) => {
+      if (!text.trim()) return;
 
-    // Create conversation on first message
-    if (!conversationIdRef.current) {
-      const conv = await window.electronAPI?.createAgentConversation?.("New conversation");
-      conversationIdRef.current = conv?.id ?? null;
-    }
-
-    const userMsg: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: text,
-      isStreaming: false,
-    };
-    setMessages((prev) => [...prev, userMsg]);
-
-    if (conversationIdRef.current) {
-      window.electronAPI?.addAgentMessage?.(conversationIdRef.current, "user", text);
-    }
-
-    // Auto-title after first user message
-    const allMessages = messagesRef.current;
-    if (conversationIdRef.current && allMessages.length === 0) {
-      const title = text.slice(0, 50) + (text.length > 50 ? "..." : "");
-      window.electronAPI?.updateAgentConversationTitle?.(conversationIdRef.current, title);
-    }
-
-    setAgentState("thinking");
-
-    const settings = getSettings();
-    const systemPrompt = getAgentSystemPrompt();
-
-    const llmMessages = [
-      { role: "system", content: systemPrompt },
-      ...[...allMessages, userMsg].slice(-20).map((m) => ({ role: m.role, content: m.content })),
-    ];
-
-    const assistantId = crypto.randomUUID();
-    setMessages((prev) => [
-      ...prev,
-      { id: assistantId, role: "assistant", content: "", isStreaming: true },
-    ]);
-    setAgentState("streaming");
-
-    const isCloudAgent = settings.isSignedIn && settings.cloudAgentMode === "openwhispr";
-
-    try {
-      let fullContent = "";
-
-      const streamSource = isCloudAgent
-        ? ReasoningService.processTextStreamingCloud(llmMessages, { systemPrompt })
-        : ReasoningService.processTextStreaming(
-            llmMessages,
-            settings.agentModel,
-            settings.agentProvider,
-            { systemPrompt }
-          );
-
-      for await (const chunk of streamSource) {
-        fullContent += chunk;
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content: fullContent } : m))
-        );
+      if (!persistence.conversationId) {
+        await persistence.createConversation(t("agentMode.titleBar.newChat"));
       }
 
-      setMessages((prev) =>
-        prev.map((m) => (m.id === assistantId ? { ...m, isStreaming: false } : m))
-      );
+      const userMsg: Message = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: text,
+        isStreaming: false,
+      };
+      setMessages((prev) => [...prev, userMsg]);
 
-      if (conversationIdRef.current) {
-        window.electronAPI?.addAgentMessage?.(conversationIdRef.current, "assistant", fullContent);
+      await persistence.saveUserMessage(text);
+
+      if (persistence.conversationId && messages.length === 0) {
+        const title = text.slice(0, 50) + (text.length > 50 ? "..." : "");
+        window.electronAPI?.updateAgentConversationTitle?.(persistence.conversationId, title);
       }
-    } catch (error) {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId
-            ? { ...m, content: `Error: ${(error as Error).message}`, isStreaming: false }
-            : m
-        )
-      );
-    }
 
-    setAgentState("idle");
-  }, []);
+      await streaming.sendToAI(text, [...messages, userMsg]);
+    },
+    [t, messages, setMessages, persistence, streaming]
+  );
 
   useEffect(() => {
     const am = new AudioManager();
     am.setSkipReasoning(true);
     am.setContext("agent");
     am.setCallbacks({
-      onStateChange: ({
-        isRecording,
-        isProcessing,
-      }: {
-        isRecording: boolean;
-        isProcessing: boolean;
-      }) => {
-        if (isRecording) setAgentState("listening");
-        else if (isProcessing) setAgentState("transcribing");
-      },
+      onStateChange: () => {},
       onError: (error: { message?: string }) => {
         const msg = error?.message || (typeof error === "string" ? error : "Transcription failed");
-        addSystemMessage(`Error: ${msg}`);
-        setAgentState("idle");
+        addSystemMessage(`${t("agentMode.chat.errorPrefix")}: ${msg}`);
       },
       onTranscriptionComplete: (result: { text: string }) => {
         handleTranscriptionComplete(result.text);
@@ -163,8 +93,10 @@ export default function AgentOverlay() {
     });
     audioManagerRef.current = am;
     return () => {
+      am.cleanup?.();
       window.removeEventListener("api-key-changed", (am as any)._onApiKeyChanged);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addSystemMessage, handleTranscriptionComplete]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent, direction: string) => {
@@ -245,11 +177,10 @@ export default function AgentOverlay() {
   }, []);
 
   const handleNewChat = useCallback(() => {
-    setMessages([]);
-    setAgentState("idle");
+    persistenceNewChat();
     setPartialTranscript("");
-    conversationIdRef.current = null;
-  }, []);
+    streaming.cancelStream();
+  }, [persistenceNewChat, streaming]);
 
   const handleClose = useCallback(() => {
     window.electronAPI?.hideAgentOverlay?.();
@@ -268,10 +199,15 @@ export default function AgentOverlay() {
       >
         <AgentTitleBar onNewChat={handleNewChat} onClose={handleClose} />
         <AgentChat messages={messages} />
-        <AgentInput agentState={agentState} partialTranscript={partialTranscript} />
+        <AgentInput
+          agentState={agentState}
+          partialTranscript={partialTranscript}
+          onTextSubmit={handleTranscriptionComplete}
+          onCancel={streaming.cancelStream}
+        />
       </div>
 
-      {/* Resize handles — edges */}
+      {/* Resize handles -- edges */}
       <div
         className="absolute top-0 left-2 right-2 h-[5px] cursor-n-resize"
         onMouseDown={(e) => handleResizeStart(e, "n")}
@@ -289,7 +225,7 @@ export default function AgentOverlay() {
         onMouseDown={(e) => handleResizeStart(e, "e")}
       />
 
-      {/* Resize handles — corners */}
+      {/* Resize handles -- corners */}
       <div
         className="absolute top-0 left-0 w-[10px] h-[10px] cursor-nw-resize"
         onMouseDown={(e) => handleResizeStart(e, "nw")}

@@ -11,6 +11,7 @@ const CHECK_INTERVAL_MS = process.platform === "win32" ? 15 * 1000 : 3 * 1000;
 const SUSTAINED_THRESHOLD_CHECKS = 2;
 const SUSTAINED_EVENT_DRIVEN_MS = 2 * 1000;
 const COOLDOWN_MS = 5 * 60 * 1000;
+const INACTIVE_RESET_MS = 60 * 1000;
 const EXEC_OPTS = { timeout: 5000, encoding: "utf8" };
 
 class AudioActivityDetector extends EventEmitter {
@@ -29,6 +30,7 @@ class AudioActivityDetector extends EventEmitter {
     this._sustainedTimer = null;
     this._running = false;
     this._eventDriven = false;
+    this._resetTimer = null;
   }
 
   setUserRecording(active) {
@@ -69,6 +71,7 @@ class AudioActivityDetector extends EventEmitter {
     this._running = false;
     this._killListenerProcess();
     this._clearSustainedTimer();
+    this._clearResetTimer();
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
@@ -82,6 +85,7 @@ class AudioActivityDetector extends EventEmitter {
     this.lastDismissedAt = Date.now();
     this._reset();
     this._clearSustainedTimer();
+    this._clearResetTimer();
     debugLogger.info(
       "Audio detection dismissed, cooldown started",
       { cooldownMs: COOLDOWN_MS },
@@ -102,12 +106,29 @@ class AudioActivityDetector extends EventEmitter {
     this.hasPrompted = false;
     this._activeMicPids.clear();
     this._activeSources = 0;
+    this._clearResetTimer();
   }
 
   _clearSustainedTimer() {
     if (this._sustainedTimer) {
       clearTimeout(this._sustainedTimer);
       this._sustainedTimer = null;
+    }
+  }
+
+  _startResetTimer() {
+    this._clearResetTimer();
+    this._resetTimer = setTimeout(() => {
+      this._resetTimer = null;
+      this.hasPrompted = false;
+      debugLogger.debug("hasPrompted reset after sustained inactivity", {}, "meeting");
+    }, INACTIVE_RESET_MS);
+  }
+
+  _clearResetTimer() {
+    if (this._resetTimer) {
+      clearTimeout(this._resetTimer);
+      this._resetTimer = null;
     }
   }
 
@@ -333,13 +354,34 @@ class AudioActivityDetector extends EventEmitter {
   // ---------------------------------------------------------------------------
 
   _onMicStateChanged(active) {
-    if (this._userRecording) return;
-    if (this.lastDismissedAt && Date.now() - this.lastDismissedAt < COOLDOWN_MS) return;
-    if (this.hasPrompted) return;
+    if (this._userRecording) {
+      debugLogger.debug("Mic state changed but user recording, ignoring", { active }, "meeting");
+      return;
+    }
+    if (this.lastDismissedAt && Date.now() - this.lastDismissedAt < COOLDOWN_MS) {
+      debugLogger.debug(
+        "Mic state changed but in cooldown",
+        {
+          active,
+          remainingMs: COOLDOWN_MS - (Date.now() - this.lastDismissedAt),
+        },
+        "meeting"
+      );
+      return;
+    }
 
-    debugLogger.debug("Mic state changed (event-driven)", { active }, "meeting");
+    debugLogger.debug(
+      "Mic state changed (event-driven)",
+      { active, hasPrompted: this.hasPrompted },
+      "meeting"
+    );
 
     if (active) {
+      this._clearResetTimer();
+      if (this.hasPrompted) {
+        debugLogger.debug("Mic active but already prompted, suppressing", {}, "meeting");
+        return;
+      }
       if (!this.audioActiveStart) this.audioActiveStart = Date.now();
 
       if (!this._sustainedTimer) {
@@ -362,6 +404,7 @@ class AudioActivityDetector extends EventEmitter {
     } else {
       this._clearSustainedTimer();
       this.audioActiveStart = null;
+      if (this.hasPrompted) this._startResetTimer();
     }
   }
 
@@ -377,7 +420,6 @@ class AudioActivityDetector extends EventEmitter {
   async _check() {
     if (this._checking) return;
     if (this.lastDismissedAt && Date.now() - this.lastDismissedAt < COOLDOWN_MS) return;
-    if (this.hasPrompted) return;
     if (this._userRecording) return;
 
     this._checking = true;
@@ -390,10 +432,11 @@ class AudioActivityDetector extends EventEmitter {
       );
 
       if (active) {
+        this._clearResetTimer();
         this.consecutiveChecks++;
         if (!this.audioActiveStart) this.audioActiveStart = Date.now();
 
-        if (this.consecutiveChecks >= SUSTAINED_THRESHOLD_CHECKS) {
+        if (!this.hasPrompted && this.consecutiveChecks >= SUSTAINED_THRESHOLD_CHECKS) {
           this.hasPrompted = true;
           const now = Date.now();
           const durationMs = now - this.audioActiveStart;
@@ -414,6 +457,7 @@ class AudioActivityDetector extends EventEmitter {
         }
         this.consecutiveChecks = 0;
         this.audioActiveStart = null;
+        if (this.hasPrompted) this._startResetTimer();
       }
     } finally {
       this._checking = false;

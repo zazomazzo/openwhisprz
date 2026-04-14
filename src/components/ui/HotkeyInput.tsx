@@ -149,7 +149,7 @@ export interface HotkeyInputProps {
   validate?: (hotkey: string) => string | null | undefined;
 }
 
-export function mapKeyboardEventToHotkey(e: KeyboardEvent): string | null {
+function mapKeyboardEventToHotkey(e: KeyboardEvent): string | null {
   if (MODIFIER_CODES.has(e.code)) {
     return null;
   }
@@ -466,6 +466,7 @@ export function HotkeyInput({
         tabIndex={disabled ? -1 : 0}
         role="button"
         aria-label={t("hotkeyInput.ariaLabel")}
+        data-capturing={isCapturing || undefined}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         onFocus={handleFocus}
@@ -569,6 +570,7 @@ export function HotkeyInput({
       tabIndex={disabled ? -1 : 0}
       role="button"
       aria-label={t("hotkeyInput.ariaLabel")}
+      data-capturing={isCapturing || undefined}
       onKeyDown={handleKeyDown}
       onKeyUp={handleKeyUp}
       onFocus={handleFocus}

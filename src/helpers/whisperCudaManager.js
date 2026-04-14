@@ -183,7 +183,8 @@ class WhisperCudaManager {
       this._downloading = false;
       this._downloadSignal = null;
       if (zipPath) await fsPromises.unlink(zipPath).catch(() => {});
-      if (extractDir) await fsPromises.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+      if (extractDir)
+        await fsPromises.rm(extractDir, { recursive: true, force: true }).catch(() => {});
     }
   }
 

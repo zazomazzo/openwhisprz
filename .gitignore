@@ -265,15 +265,10 @@ $RECYCLE.BIN/
 *.swo
 *~
 
-# Claude Code
+# AI agent skills (keep local)
 .claude/
 .agent/
 .agents/
-
-# AI agent skills (keep local)
-.agents/
-.agent/
-.claude/skills/
 .cline/
 .codebuddy/
 .codex/
@@ -314,3 +309,4 @@ Thumbs.db
 .macos-fast-paste.hash
 .macos-fast-paste.*.hash
 .linux-fast-paste.hash
+.qdrant-initialized

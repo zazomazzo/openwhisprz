@@ -1,22 +1,32 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Search, FileText, Mic, Folder, Users, Upload } from "lucide-react";
+import { Search, FileText, Mic, Folder, Users, Upload, MessageSquare } from "lucide-react";
 import { cn } from "./lib/utils";
 import type { NoteItem, FolderItem, TranscriptionItem } from "../types/electron.js";
 import { normalizeDbDate } from "../utils/dateFormatting";
 
+interface ConversationResult {
+  id: number;
+  title: string;
+  last_message?: string;
+  updated_at: string;
+}
+
 export interface CommandSearchProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  transcriptions: TranscriptionItem[];
-  onNoteSelect: (noteId: number) => void;
-  onTranscriptSelect: (transcriptId: number) => void;
+  mode?: "all" | "conversations";
+  transcriptions?: TranscriptionItem[];
+  onNoteSelect?: (noteId: number, folderId: number | null) => void;
+  onTranscriptSelect?: (transcriptId: number) => void;
+  onConversationSelect?: (conversationId: number) => void;
 }
 
 type FlatItem =
   | { kind: "note"; note: NoteItem }
-  | { kind: "transcript"; transcript: TranscriptionItem };
+  | { kind: "transcript"; transcript: TranscriptionItem }
+  | { kind: "conversation"; conversation: ConversationResult };
 
 function relativeTime(
   dateStr: string,
@@ -47,64 +57,130 @@ function stripMarkdownPreview(text: string): string {
 export default function CommandSearch({
   open,
   onOpenChange,
-  transcriptions,
+  mode = "all",
+  transcriptions = [],
   onNoteSelect,
   onTranscriptSelect,
+  onConversationSelect,
 }: CommandSearchProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
+  const [conversations, setConversations] = useState<ConversationResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchVersionRef = useRef(0);
+  const isConversationsMode = mode === "conversations";
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [prevNotes, setPrevNotes] = useState(notes);
+  const [prevQuery, setPrevQuery] = useState(query);
 
   useEffect(() => {
+    if (isConversationsMode) return;
     window.electronAPI
       .getFolders()
       .then(setFolders)
       .catch(() => {});
-  }, []);
+  }, [isConversationsMode]);
+
+  if (open && !prevOpen) {
+    setPrevOpen(open);
+    setQuery("");
+    setSelectedIndex(0);
+  } else if (open !== prevOpen) {
+    setPrevOpen(open);
+  }
 
   useEffect(() => {
     if (!open) return;
-    setQuery("");
-    setSelectedIndex(0);
-    window.electronAPI
-      .getNotes()
-      .then(setNotes)
-      .catch(() => {});
-  }, [open]);
-
-  useEffect(() => {
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-
-    if (!query.trim()) {
+    if (isConversationsMode) {
+      window.electronAPI?.getAgentConversationsWithPreview?.(20, 0, false).then((r) => {
+        if (r)
+          setConversations(
+            r.map((c) => ({
+              id: c.id,
+              title: c.title || "Untitled",
+              last_message: c.last_message,
+              updated_at: c.updated_at,
+            }))
+          );
+      });
+    } else {
       window.electronAPI
         .getNotes()
         .then(setNotes)
         .catch(() => {});
-      return;
     }
+  }, [open, isConversationsMode]);
 
-    searchTimerRef.current = setTimeout(async () => {
-      try {
-        const results = await window.electronAPI.searchNotes(query);
-        setNotes(results);
-      } catch {
-        // keep current results
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    const version = ++searchVersionRef.current;
+
+    if (isConversationsMode) {
+      if (!query.trim()) {
+        window.electronAPI?.getAgentConversationsWithPreview?.(20, 0, false).then((r) => {
+          if (searchVersionRef.current === version && r) {
+            setConversations(
+              r.map((c) => ({
+                id: c.id,
+                title: c.title || "Untitled",
+                last_message: c.last_message,
+                updated_at: c.updated_at,
+              }))
+            );
+          }
+        });
+        return;
       }
-    }, 200);
+      searchTimerRef.current = setTimeout(async () => {
+        try {
+          const r = await window.electronAPI?.semanticSearchConversations?.(query, 20);
+          if (searchVersionRef.current === version && r) {
+            setConversations(
+              r.map((c) => ({
+                id: c.id,
+                title: c.title || "Untitled",
+                last_message: c.last_message,
+                updated_at: c.updated_at,
+              }))
+            );
+          }
+        } catch {
+          /* keep current */
+        }
+      }, 200);
+    } else {
+      if (!query.trim()) {
+        window.electronAPI
+          .getNotes()
+          .then(setNotes)
+          .catch(() => {});
+        return;
+      }
+      searchTimerRef.current = setTimeout(async () => {
+        try {
+          const results = await window.electronAPI.searchNotes(query);
+          setNotes(results);
+        } catch {
+          /* keep current */
+        }
+      }, 200);
+    }
 
     return () => {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
-  }, [query]);
+  }, [query, isConversationsMode]);
 
-  useEffect(() => {
+  if (notes !== prevNotes || query !== prevQuery) {
+    setPrevNotes(notes);
+    setPrevQuery(query);
     setSelectedIndex(0);
-  }, [notes, query]);
+  }
 
   const folderMap = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
 
@@ -139,21 +215,25 @@ export default function CommandSearch({
   }, [transcriptions, query]);
 
   const flatItems = useMemo<FlatItem[]>(() => {
+    if (isConversationsMode) {
+      return conversations.map((c) => ({ kind: "conversation" as const, conversation: c }));
+    }
     const items: FlatItem[] = [];
     for (const group of noteGroups) {
       for (const note of group.items) items.push({ kind: "note", note });
     }
     for (const transcript of filteredTranscripts) items.push({ kind: "transcript", transcript });
     return items;
-  }, [noteGroups, filteredTranscripts]);
+  }, [noteGroups, filteredTranscripts, conversations, isConversationsMode]);
 
   const selectItem = useCallback(
     (item: FlatItem) => {
-      if (item.kind === "note") onNoteSelect(item.note.id);
-      else onTranscriptSelect(item.transcript.id);
+      if (item.kind === "note") onNoteSelect?.(item.note.id, item.note.folder_id ?? null);
+      else if (item.kind === "transcript") onTranscriptSelect?.(item.transcript.id);
+      else if (item.kind === "conversation") onConversationSelect?.(item.conversation.id);
       onOpenChange(false);
     },
-    [onNoteSelect, onTranscriptSelect, onOpenChange]
+    [onNoteSelect, onTranscriptSelect, onConversationSelect, onOpenChange]
   );
 
   const handleKeyDown = useCallback(
@@ -211,7 +291,7 @@ export default function CommandSearch({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={t("commandSearch.placeholder")}
+              placeholder={isConversationsMode ? t("chat.search") : t("commandSearch.placeholder")}
               autoFocus
               className="flex-1 text-sm text-foreground placeholder:text-muted-foreground/40"
               style={{
@@ -237,9 +317,48 @@ export default function CommandSearch({
             {!hasResults ? (
               <div className="flex items-center justify-center py-10">
                 <p className="text-xs text-muted-foreground/50">
-                  {query.trim() ? t("commandSearch.noResults") : t("commandSearch.emptyState")}
+                  {query.trim()
+                    ? t("commandSearch.noResults")
+                    : isConversationsMode
+                      ? t("chat.noConversations")
+                      : t("commandSearch.emptyState")}
                 </p>
               </div>
+            ) : isConversationsMode ? (
+              conversations.map((conv, idx) => (
+                <button
+                  key={conv.id}
+                  type="button"
+                  data-idx={idx}
+                  onClick={() => selectItem({ kind: "conversation", conversation: conv })}
+                  onMouseEnter={() => setSelectedIndex(idx)}
+                  className={cn(
+                    "flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-left transition-colors duration-100 outline-none",
+                    selectedIndex === idx
+                      ? "bg-primary/8 dark:bg-primary/10"
+                      : "hover:bg-foreground/4 dark:hover:bg-white/4"
+                  )}
+                >
+                  <MessageSquare
+                    size={13}
+                    className={cn(
+                      "shrink-0 mt-px transition-colors",
+                      selectedIndex === idx ? "text-primary" : "text-muted-foreground/40"
+                    )}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{conv.title}</p>
+                    {conv.last_message && (
+                      <p className="text-[11px] text-muted-foreground/55 truncate mt-px">
+                        {conv.last_message.slice(0, 90)}
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground/35 tabular-nums shrink-0">
+                    {relativeTime(conv.updated_at, t)}
+                  </span>
+                </button>
+              ))
             ) : (
               <>
                 {noteGroups.length > 0 && (

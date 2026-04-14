@@ -5,6 +5,7 @@ import logger from "../utils/logger";
 import { playStartCue, playStopCue } from "../utils/dictationCues";
 import { getSettings } from "../stores/settingsStore";
 import { getRecordingErrorTitle } from "../utils/recordingErrors";
+import { isAccessibilitySkipped } from "../utils/permissions";
 
 export const useAudioRecording = (toast, options = {}) => {
   const { t } = useTranslation();
@@ -27,15 +28,24 @@ export const useAudioRecording = (toast, options = {}) => {
       const currentState = audioManagerRef.current.getState();
       if (currentState.isRecording || currentState.isProcessing) return false;
 
+      // Retry STT config fetch if it wasn't loaded on mount (e.g. auth wasn't ready)
+      if (!audioManagerRef.current.sttConfig) {
+        const config = await window.electronAPI.getSttConfig?.();
+        if (config?.success) {
+          audioManagerRef.current.setSttConfig(config);
+        }
+      }
+
       const didStart = audioManagerRef.current.shouldUseStreaming()
         ? await audioManagerRef.current.startStreamingRecording()
         : await audioManagerRef.current.startRecording();
 
       if (didStart) {
-        void playStartCue();
         if (getSettings().pauseMediaOnDictation) {
           window.electronAPI?.pauseMediaPlayback?.();
         }
+        window.electronAPI?.registerCancelHotkey?.("Escape");
+        void playStartCue();
       }
 
       return didStart;
@@ -52,6 +62,8 @@ export const useAudioRecording = (toast, options = {}) => {
 
       const currentState = audioManagerRef.current.getState();
       if (!currentState.isRecording && !currentState.isStreamingStartInProgress) return false;
+
+      window.electronAPI?.unregisterCancelHotkey?.();
 
       if (currentState.isStreaming || currentState.isStreamingStartInProgress) {
         void playStopCue();
@@ -75,6 +87,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
     audioManagerRef.current.setCallbacks({
       onStateChange: ({ isRecording, isProcessing, isStreaming }) => {
+        if (!isRecording) window.electronAPI?.unregisterCancelHotkey?.();
         setIsRecording(isRecording);
         setIsProcessing(isProcessing);
         setIsStreaming(isStreaming ?? false);
@@ -83,6 +96,9 @@ export const useAudioRecording = (toast, options = {}) => {
         }
       },
       onError: (error) => {
+        if (error?.title !== "Paste Error") {
+          window.electronAPI?.hideDictationPreview?.();
+        }
         const title = getRecordingErrorTitle(error, t);
         toast({
           title,
@@ -106,21 +122,20 @@ export const useAudioRecording = (toast, options = {}) => {
           const transcribedText = result.text?.trim();
 
           if (!transcribedText) {
+            window.electronAPI?.hideDictationPreview?.();
             return;
           }
 
           setTranscript(result.text);
+          window.electronAPI?.completeDictationPreview?.({ text: result.text });
 
           const isStreaming = result.source?.includes("streaming");
           const { keepTranscriptionInClipboard } = getSettings();
-          const accessibilitySkipped =
-            typeof window !== "undefined" &&
-            window.localStorage.getItem("accessibilitySkipped") === "true";
           const pasteStart = performance.now();
           await audioManagerRef.current.safePaste(result.text, {
             ...(isStreaming ? { fromStreaming: true } : {}),
             restoreClipboard: !keepTranscriptionInClipboard,
-            allowClipboardFallback: accessibilitySkipped,
+            allowClipboardFallback: isAccessibilitySkipped(),
           });
           logger.info(
             "Paste timing",
@@ -163,7 +178,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
     audioManagerRef.current.setContext("dictation");
     window.electronAPI.getSttConfig?.().then((config) => {
-      if (config && audioManagerRef.current) {
+      if (config?.success && audioManagerRef.current) {
         audioManagerRef.current.setSttConfig(config);
         if (audioManagerRef.current.shouldUseStreaming()) {
           audioManagerRef.current.warmupStreamingConnection();
@@ -227,16 +242,9 @@ export const useAudioRecording = (toast, options = {}) => {
     };
   }, [toast, onToggle, performStartRecording, performStopRecording, t]);
 
-  const startRecording = async () => {
-    return performStartRecording();
-  };
-
-  const stopRecording = async () => {
-    return performStopRecording();
-  };
-
-  const cancelRecording = async () => {
+  const cancelRecording = useCallback(async () => {
     if (audioManagerRef.current) {
+      window.electronAPI?.unregisterCancelHotkey?.();
       const state = audioManagerRef.current.getState();
       if (getSettings().pauseMediaOnDictation) {
         window.electronAPI?.resumeMediaPlayback?.();
@@ -247,7 +255,7 @@ export const useAudioRecording = (toast, options = {}) => {
       return audioManagerRef.current.cancelRecording();
     }
     return false;
-  };
+  }, []);
 
   const cancelProcessing = () => {
     if (audioManagerRef.current) {
@@ -258,9 +266,9 @@ export const useAudioRecording = (toast, options = {}) => {
 
   const toggleListening = async () => {
     if (!isRecording && !isProcessing) {
-      await startRecording();
+      await performStartRecording();
     } else if (isRecording) {
-      await stopRecording();
+      await performStopRecording();
     }
   };
 
@@ -270,8 +278,8 @@ export const useAudioRecording = (toast, options = {}) => {
     isStreaming,
     transcript,
     partialTranscript,
-    startRecording,
-    stopRecording,
+    startRecording: performStartRecording,
+    stopRecording: performStopRecording,
     cancelRecording,
     cancelProcessing,
     toggleListening,
