@@ -153,11 +153,11 @@ const TOOL_INSTRUCTIONS: Record<string, string> = {
   get_note:
     "Use get_note to fetch the full content of a specific note by ID. If the current note's ID is provided in the context, use it directly. Otherwise, use search_notes first to find the note ID.",
   create_note:
-    "Use create_note when the user asks you to create, write, or draft a new note. If the user specifies a folder, call list_folders first and reuse a matching existing folder (case-insensitive, tolerant of plurals/typos) instead of creating a near-duplicate. Only pass a new folder name when no existing folder is a reasonable fit.",
+    "Use create_note when the user asks you to create, write, or draft a new note. Whenever the note will go into a folder, call list_folders first and reuse an existing folder whose name is a reasonable fit for the note's topic (e.g. a new story belongs in an existing 'Stories' folder) — do this even when the user didn't name a folder but the content clearly fits one. Only pass a new folder name when nothing existing fits. Be tolerant of case, plurals, and typos.",
   update_note:
-    "Use update_note to modify an existing note's title, content, or move it to a different folder. If the current note's ID is provided in the context, use it directly. Otherwise, use search_notes first to find the note ID. When moving to a folder, call list_folders first and prefer an existing folder over creating a new one.",
+    "Use update_note to modify an existing note's title, content, or move it to a different folder. If the current note's ID is provided in the context, use it directly. Otherwise, use search_notes first to find the note ID. When moving to a folder, call list_folders first and reuse an existing folder whose name fits the note's topic; only create a new folder when nothing existing fits.",
   list_folders:
-    "Use list_folders before create_note or update_note whenever the user mentions a folder, so you can reuse an existing folder instead of creating a near-duplicate.",
+    "Use list_folders before create_note or update_note whenever a note is going into a folder, so you can reuse an existing folder whose name fits the note's topic instead of creating a near-duplicate.",
   web_search:
     "Use web_search for questions about current events, facts you're unsure about, or anything requiring up-to-date information.",
   copy_to_clipboard:
