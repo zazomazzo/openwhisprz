@@ -100,8 +100,8 @@ const CONTROL_PANEL_CONFIG = {
 };
 
 const NOTIFICATION_WINDOW_CONFIG = {
-  width: 380,
-  height: 88,
+  width: 390,
+  height: 96,
   frame: false,
   transparent: true,
   alwaysOnTop: true,

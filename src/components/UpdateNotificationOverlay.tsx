@@ -49,13 +49,13 @@ export default function UpdateNotificationOverlay() {
   );
 
   return (
-    <div className="meeting-notification-window w-full h-full bg-transparent p-2">
+    <div className="meeting-notification-window w-full h-full bg-transparent p-3 overflow-visible">
       <div
         className={[
           "group relative",
           "bg-card/95 dark:bg-surface-2/95 backdrop-blur-xl",
           "border border-border/40 dark:border-border-subtle/40",
-          "rounded-xl shadow-lg p-2.5 overflow-visible",
+          "rounded-xl shadow-lg p-2.5",
           "transition-all duration-300 ease-out",
           isVisible
             ? "translate-x-0 opacity-100 scale-100"
