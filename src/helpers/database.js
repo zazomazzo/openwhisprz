@@ -2166,7 +2166,13 @@ class DatabaseManager {
             "INSERT INTO agent_messages (conversation_id, role, content, metadata, created_at) VALUES (?, ?, ?, ?, ?)"
           );
           for (const msg of messages) {
-            msgStmt.run(conv.id, msg.role, msg.content, msg.metadata || null, msg.created_at);
+            msgStmt.run(
+              conv.id,
+              msg.role ?? "user",
+              msg.content ?? "",
+              msg.metadata ? JSON.stringify(msg.metadata) : null,
+              msg.created_at ?? new Date().toISOString()
+            );
           }
         }
         return conv;
