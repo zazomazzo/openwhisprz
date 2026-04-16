@@ -173,6 +173,9 @@ class IPCHandlers {
       const markdownMirror = require("./markdownMirror");
       const folderName = this._getFolderName(note.folder_id);
       markdownMirror.writeNote(note, folderName);
+      if (note.transcript) {
+        markdownMirror.writeTranscript(note, folderName, this._buildSpeakerMappings(note.id));
+      }
     });
   }
 
@@ -193,10 +196,26 @@ class IPCHandlers {
     return map;
   }
 
+  _buildSpeakerMappings(noteId) {
+    const arr = this.databaseManager.getSpeakerMappings(noteId);
+    const map = {};
+    for (const m of arr) {
+      map[m.speaker_id] = m.display_name;
+    }
+    return map;
+  }
+
   _rebuildMirror(basePath) {
     const markdownMirror = require("./markdownMirror");
     if (basePath) markdownMirror.init(basePath);
-    markdownMirror.rebuildAll(this.databaseManager.getNotes(null, 99999), this._buildFolderMap());
+    const notes = this.databaseManager.getNotes(null, 99999);
+    const speakerMappingsMap = {};
+    for (const note of notes) {
+      if (note.transcript) {
+        speakerMappingsMap[note.id] = this._buildSpeakerMappings(note.id);
+      }
+    }
+    markdownMirror.rebuildAll(notes, this._buildFolderMap(), speakerMappingsMap);
   }
 
   _getFolderName(folderId) {
@@ -1053,35 +1072,13 @@ class IPCHandlers {
         const segments = JSON.parse(note.transcript || "[]");
         if (!segments.length) return { success: false, error: "No transcript available" };
 
-        const speakerMappingsArr = this.databaseManager.getSpeakerMappings(noteId);
-        const speakerMappings = {};
-        for (const m of speakerMappingsArr) {
-          speakerMappings[m.speaker_id] = m.display_name;
-        }
-
-        const title = note.title || "Untitled";
-        const noteDate = new Date(note.created_at);
-        const dateStr =
-          noteDate.toLocaleDateString(undefined, {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          }) +
-          " " +
-          noteDate.toLocaleTimeString(undefined, {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-        let participants = [];
-        try {
-          const parsed = JSON.parse(note.participants || "[]");
-          participants = parsed.map((p) => p.name).filter(Boolean);
-        } catch {}
+        const speakerMappings = this._buildSpeakerMappings(noteId);
 
         const { dialog } = require("electron");
         const fs = require("fs");
-        const ext = format === "srt" ? "srt" : format === "json" ? "json" : "txt";
-        const safeName = title.replace(/[/\\?%*:|"<>]/g, "-");
+        const extMap = { srt: "srt", json: "json", md: "md" };
+        const ext = extMap[format] || "txt";
+        const safeName = (note.title || "Untitled").replace(/[/\\?%*:|"<>]/g, "-");
 
         const result = await dialog.showSaveDialog({
           defaultPath: `${safeName}.${ext}`,
@@ -1089,97 +1086,22 @@ class IPCHandlers {
             { name: "Text", extensions: ["txt"] },
             { name: "SubRip Subtitles", extensions: ["srt"] },
             { name: "JSON", extensions: ["json"] },
+            { name: "Markdown", extensions: ["md"] },
           ],
         });
 
         if (result.canceled || !result.filePath) return { success: false };
 
-        const resolveSpeaker = (seg) => {
-          if (seg.speakerName && !seg.speakerIsPlaceholder) return seg.speakerName;
-          if (seg.speaker && speakerMappings[seg.speaker]) return speakerMappings[seg.speaker];
-          if (seg.speaker === "you") return "You";
-          if (seg.speaker) {
-            const num = parseInt(seg.speaker.replace("speaker_", ""), 10);
-            return isNaN(num) ? "Unknown Speaker" : `Speaker ${num + 1}`;
-          }
-          return "Unknown Speaker";
-        };
-
-        const formatTs = (seconds) => {
-          const s = Math.floor(seconds);
-          const h = Math.floor(s / 3600);
-          const m = Math.floor((s % 3600) / 60);
-          const sec = s % 60;
-          return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-        };
-
-        const formatSrtTs = (seconds) => {
-          const s = Math.floor(seconds);
-          const ms = Math.round((seconds - s) * 1000);
-          const h = Math.floor(s / 3600);
-          const m = Math.floor((s % 3600) / 60);
-          const sec = s % 60;
-          return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")},${String(ms).padStart(3, "0")}`;
-        };
-
-        const merged = [];
-        for (const seg of segments) {
-          if (!seg.text?.trim()) continue;
-          const ts = seg.timestamp || 0;
-          const last = merged[merged.length - 1];
-          if (last && last.speaker === (seg.speaker || "") && ts - last.timestamp < 2) {
-            last.text = last.text + " " + seg.text.trim();
-            last.timestamp = ts;
-          } else {
-            merged.push({ ...seg, timestamp: ts, text: seg.text.trim() });
-          }
-        }
-
+        const transcriptFormatter = require("./transcriptFormatter");
         let exportContent;
         if (format === "txt") {
-          const lines = [title, dateStr];
-          if (participants.length) lines.push(`Participants: ${participants.join(", ")}`);
-          lines.push("", "──────────────────────────────────", "");
-          for (const seg of merged) {
-            lines.push(`[${formatTs(seg.timestamp)}] ${resolveSpeaker(seg)}:`);
-            lines.push(seg.text);
-            lines.push("");
-          }
-          exportContent = lines.join("\n");
+          exportContent = transcriptFormatter.formatTxt(note, segments, speakerMappings);
         } else if (format === "srt") {
-          const entries = [];
-          for (let i = 0; i < merged.length; i++) {
-            const seg = merged[i];
-            const nextTs = i + 1 < merged.length ? merged[i + 1].timestamp : seg.timestamp + 3;
-            entries.push(`${i + 1}`);
-            entries.push(`${formatSrtTs(seg.timestamp)} --> ${formatSrtTs(nextTs)}`);
-            entries.push(`${resolveSpeaker(seg)}: ${seg.text}`);
-            entries.push("");
-          }
-          exportContent = entries.join("\n");
+          exportContent = transcriptFormatter.formatSrt(segments, speakerMappings);
+        } else if (format === "md") {
+          exportContent = transcriptFormatter.formatMd(note, segments, speakerMappings);
         } else {
-          const speakersSet = new Set();
-          for (const seg of merged) speakersSet.add(resolveSpeaker(seg));
-          const lastSeg = merged[merged.length - 1];
-          exportContent = JSON.stringify(
-            {
-              metadata: {
-                title,
-                date: dateStr,
-                duration_seconds: lastSeg ? Math.round(lastSeg.timestamp) : 0,
-                speaker_count: speakersSet.size,
-                segment_count: merged.length,
-              },
-              speakers: [...speakersSet],
-              segments: merged.map((seg) => ({
-                speaker: resolveSpeaker(seg),
-                timestamp: seg.timestamp,
-                text: seg.text,
-              })),
-            },
-            null,
-            2
-          );
+          exportContent = transcriptFormatter.formatJson(note, segments, speakerMappings);
         }
 
         fs.writeFileSync(result.filePath, exportContent, "utf-8");
@@ -5182,6 +5104,46 @@ class IPCHandlers {
         return { success: true, ...data };
       } catch (error) {
         debugLogger.error(`Cloud preview switch error: ${error.message}`);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("cloud-api-request", async (event, opts) => {
+      try {
+        const apiUrl = getApiUrl();
+        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+
+        const cookieHeader = await getSessionCookies(event);
+        if (!cookieHeader) throw new Error("No session cookies available");
+
+        const method = (opts.method || "GET").toUpperCase();
+        const headers = { Cookie: cookieHeader };
+        const fetchOpts = { method, headers };
+
+        if (opts.body !== undefined) {
+          headers["Content-Type"] = "application/json";
+          fetchOpts.body = JSON.stringify(opts.body);
+        }
+
+        const response = await fetch(`${apiUrl}${opts.path}`, fetchOpts);
+
+        if (response.status === 401) {
+          return { success: false, error: "Session expired", code: "AUTH_EXPIRED" };
+        }
+        if (response.status === 503) {
+          return { success: false, error: "Service temporarily unavailable", code: "SERVER_ERROR" };
+        }
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          const message = data?.error?.message || data?.error || `API error: ${response.status}`;
+          return { success: false, error: message };
+        }
+
+        return { success: true, data };
+      } catch (error) {
+        debugLogger.error(`Cloud API request error (${opts?.path}):`, error);
         return { success: false, error: error.message };
       }
     });

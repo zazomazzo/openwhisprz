@@ -1,4 +1,4 @@
-import { OPENWHISPR_API_URL } from "../config/constants.js";
+import { cloudGet, cloudPost } from "./cloudApi.js";
 
 interface ApiKey {
   id: string;
@@ -20,43 +20,27 @@ interface CreateApiKeyOptions {
   expiresInDays?: number | null;
 }
 
+interface V1Response<T> {
+  data: T;
+}
+
 async function listApiKeys(): Promise<{ keys: ApiKey[] }> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/v1/keys/list`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error(await res.text());
-  const json = await res.json();
-  return json.data as { keys: ApiKey[] };
+  const res = await cloudGet<V1Response<{ keys: ApiKey[] }>>("/api/v1/keys/list");
+  return { keys: res.data.keys };
 }
 
 async function createApiKey(options: CreateApiKeyOptions): Promise<CreateApiKeyResponse> {
-  const body: Record<string, unknown> = {
+  const res = await cloudPost<V1Response<CreateApiKeyResponse>>("/api/v1/keys/create", {
     name: options.name,
     scopes: options.scopes,
-  };
-  if (options.expiresInDays != null) {
-    body.expires_in_days = options.expiresInDays;
-  }
-
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/v1/keys/create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(body),
+    ...(options.expiresInDays != null ? { expires_in_days: options.expiresInDays } : {}),
   });
-  if (!res.ok) throw new Error(await res.text());
-  const json = await res.json();
-  return json.data as CreateApiKeyResponse;
+  return res.data;
 }
 
 async function revokeApiKey(id: string): Promise<{ revoked: true }> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/v1/keys/${id}/revoke`, {
-    method: "POST",
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error(await res.text());
-  const json = await res.json();
-  return json.data as { revoked: true };
+  await cloudPost(`/api/v1/keys/${id}/revoke`);
+  return { revoked: true };
 }
 
 export { listApiKeys, createApiKey, revokeApiKey };

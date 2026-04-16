@@ -1,4 +1,4 @@
-import { OPENWHISPR_API_URL } from "../config/constants.js";
+import { cloudGet, cloudPost, cloudPatch, cloudDelete } from "./cloudApi.js";
 
 interface FolderInput {
   name: string;
@@ -18,54 +18,23 @@ interface CloudFolder {
 }
 
 async function create(folder: FolderInput): Promise<CloudFolder> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/folders/create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(folder),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<CloudFolder>;
+  return cloudPost<CloudFolder>("/api/folders/create", folder);
 }
 
 async function batchCreate(folders: FolderInput[]): Promise<{ created: CloudFolder[] }> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/folders/batch-create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ folders }),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ created: CloudFolder[] }>;
+  return cloudPost<{ created: CloudFolder[] }>("/api/folders/batch-create", { folders });
 }
 
 async function update(id: string, updates: Partial<FolderInput>): Promise<CloudFolder> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/folders/update`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ id, ...updates }),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<CloudFolder>;
+  return cloudPatch<CloudFolder>("/api/folders/update", { id, ...updates });
 }
 
 async function deleteFolder(id: string): Promise<void> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/folders/delete`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ id }),
-  });
-  if (!res.ok) throw new Error(await res.text());
+  await cloudDelete("/api/folders/delete", { id });
 }
 
 async function list(): Promise<{ folders: CloudFolder[] }> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/folders/list`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ folders: CloudFolder[] }>;
+  return cloudGet<{ folders: CloudFolder[] }>("/api/folders/list");
 }
 
 export { create, batchCreate, update, deleteFolder, list };

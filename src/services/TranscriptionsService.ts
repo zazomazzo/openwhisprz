@@ -1,4 +1,4 @@
-import { OPENWHISPR_API_URL } from "../config/constants.js";
+import { cloudGet, cloudPost, cloudDelete } from "./cloudApi.js";
 
 interface TranscriptionInput {
   client_transcription_id?: string;
@@ -29,27 +29,15 @@ interface CloudTranscription {
 }
 
 async function create(transcription: TranscriptionInput): Promise<CloudTranscription> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/transcriptions/create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(transcription),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<CloudTranscription>;
+  return cloudPost<CloudTranscription>("/api/transcriptions/create", transcription);
 }
 
 async function batchCreate(
   transcriptions: TranscriptionInput[]
 ): Promise<{ created: CloudTranscription[] }> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/transcriptions/batch-create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ transcriptions }),
+  return cloudPost<{ created: CloudTranscription[] }>("/api/transcriptions/batch-create", {
+    transcriptions,
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ created: CloudTranscription[] }>;
 }
 
 async function list(
@@ -60,22 +48,13 @@ async function list(
   if (limit !== undefined) params.set("limit", String(limit));
   if (before !== undefined) params.set("before", before);
   const query = params.toString();
-  const res = await fetch(
-    `${OPENWHISPR_API_URL}/api/transcriptions/list${query ? `?${query}` : ""}`,
-    { credentials: "include" }
+  return cloudGet<{ transcriptions: CloudTranscription[] }>(
+    `/api/transcriptions/list${query ? `?${query}` : ""}`
   );
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ transcriptions: CloudTranscription[] }>;
 }
 
 async function deleteTranscription(id: string): Promise<void> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/transcriptions/delete`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ id }),
-  });
-  if (!res.ok) throw new Error(await res.text());
+  await cloudDelete("/api/transcriptions/delete", { id });
 }
 
 export { create, batchCreate, list, deleteTranscription };

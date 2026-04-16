@@ -2150,12 +2150,12 @@ class DatabaseManager {
             updated_at = excluded.updated_at
         `);
         convStmt.run(
-          cloudConv.client_conversation_id,
-          cloudConv.id,
-          cloudConv.title,
-          cloudConv.note_id || null,
-          cloudConv.created_at,
-          cloudConv.updated_at
+          cloudConv.client_conversation_id ?? null,
+          cloudConv.id ?? null,
+          cloudConv.title ?? "Untitled",
+          cloudConv.note_id ?? null,
+          cloudConv.created_at ?? new Date().toISOString(),
+          cloudConv.updated_at ?? new Date().toISOString()
         );
         const conv = this.db
           .prepare("SELECT * FROM agent_conversations WHERE client_conversation_id = ?")
@@ -2166,7 +2166,13 @@ class DatabaseManager {
             "INSERT INTO agent_messages (conversation_id, role, content, metadata, created_at) VALUES (?, ?, ?, ?, ?)"
           );
           for (const msg of messages) {
-            msgStmt.run(conv.id, msg.role, msg.content, msg.metadata || null, msg.created_at);
+            msgStmt.run(
+              conv.id,
+              msg.role ?? "user",
+              msg.content ?? "",
+              msg.metadata ? JSON.stringify(msg.metadata) : null,
+              msg.created_at ?? new Date().toISOString()
+            );
           }
         }
         return conv;

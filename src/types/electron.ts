@@ -467,7 +467,7 @@ declare global {
       ) => Promise<{ success: boolean; error?: string }>;
       exportTranscript: (
         noteId: number,
-        format: "txt" | "srt" | "json"
+        format: "txt" | "srt" | "json" | "md"
       ) => Promise<{ success: boolean; error?: string }>;
       searchNotes: (query: string, limit?: number) => Promise<NoteItem[]>;
       semanticSearchNotes: (query: string, limit?: number) => Promise<NoteItem[]>;
@@ -1006,6 +1006,14 @@ declare global {
         nextBillingDate?: string;
         alreadyOnPlan?: boolean;
         error?: string;
+      }>;
+
+      // Authenticated cloud API proxy
+      cloudApiRequest?: (opts: { method?: string; path: string; body?: unknown }) => Promise<{
+        success: boolean;
+        data?: unknown;
+        error?: string;
+        code?: string;
       }>;
 
       // Cloud audio file transcription

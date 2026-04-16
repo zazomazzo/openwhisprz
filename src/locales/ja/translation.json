@@ -10,11 +10,11 @@
     },
     "noteFiles": {
       "title": "ノートをファイルとして保存",
-      "description": "ノートを .md ファイルとしてディスクに自動保存し、フォルダごとに整理",
+      "description": "ノートと文字起こしをファイルとしてディスクに自動保存し、フォルダごとに整理",
       "path": "保存先",
       "changePath": "保存先を変更",
       "rebuild": "すべてのファイルを再構築",
-      "rebuildDescription": "すべてのノートをディスクに再同期"
+      "rebuildDescription": "すべてのノートと文字起こしをディスクに再同期"
     }
   },
   "tray": {
@@ -1410,6 +1410,10 @@
       "usageAnalyticsDescription": "匿名のパフォーマンスデータを共有して OpenWhispr の改善にご協力ください。文字起こしの内容は送信されません。タイミングとエラーデータのみです。",
       "dataRetention": "データ保持",
       "dataRetentionDescription": "文字起こしと音声を履歴にローカル保存します。無効にすると、文字起こしは貼り付けられますが保存されません。",
+      "hoursAgo": "{{count}}時間前",
+      "justNow": "たった今",
+      "lastSynced": "最終同期 {{time}}",
+      "minutesAgo": "{{count}}分前",
       "audioRetention": "音声の保持",
       "audioRetentionDescription": "再文字起こしやダウンロードのために音声録音をローカルに保存します。ファイルは保持期間が過ぎると自動的に削除されます。",
       "audioRetentionDisabled": "無効",
@@ -1596,6 +1600,7 @@
       "asTranscriptText": "プレーンテキスト (.txt)",
       "asSubtitles": "字幕ファイル (.srt)",
       "asJson": "JSON (.json)",
+      "asTranscriptMarkdown": "Markdown (.md)",
       "raw": "元のテキスト",
       "enhanced": "強化済み",
       "saving": "保存中",

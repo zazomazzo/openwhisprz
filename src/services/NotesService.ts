@@ -1,4 +1,4 @@
-import { OPENWHISPR_API_URL } from "../config/constants.js";
+import { cloudGet, cloudPost, cloudPatch, cloudDelete } from "./cloudApi.js";
 
 interface NoteInput {
   client_note_id?: string;
@@ -40,48 +40,24 @@ interface SearchResult extends CloudNote {
 }
 
 async function create(note: NoteInput): Promise<CloudNote> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/notes/create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(note),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<CloudNote>;
+  return cloudPost<CloudNote>("/api/notes/create", note);
 }
 
 async function batchCreate(
   notes: NoteInput[]
 ): Promise<{ created: { client_note_id: string; id: string }[] }> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/notes/batch-create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ notes }),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ created: { client_note_id: string; id: string }[] }>;
+  return cloudPost<{ created: { client_note_id: string; id: string }[] }>(
+    "/api/notes/batch-create",
+    { notes }
+  );
 }
 
 async function update(id: string, updates: Partial<NoteInput>): Promise<CloudNote> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/notes/update`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ id, ...updates }),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<CloudNote>;
+  return cloudPatch<CloudNote>("/api/notes/update", { id, ...updates });
 }
 
 async function deleteNote(id: string): Promise<void> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/notes/delete`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ id }),
-  });
-  if (!res.ok) throw new Error(await res.text());
+  await cloudDelete("/api/notes/delete", { id });
 }
 
 async function list(limit?: number, before?: string): Promise<{ notes: CloudNote[] }> {
@@ -89,29 +65,17 @@ async function list(limit?: number, before?: string): Promise<{ notes: CloudNote
   if (limit !== undefined) params.set("limit", String(limit));
   if (before !== undefined) params.set("before", before);
   const query = params.toString();
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/notes/list${query ? `?${query}` : ""}`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ notes: CloudNote[] }>;
+  return cloudGet<{ notes: CloudNote[] }>(`/api/notes/list${query ? `?${query}` : ""}`);
 }
 
 async function deleteAll(): Promise<{ deleted: number; errors: number }> {
-  // Try bulk endpoint first; fall back to per-note deletion
   try {
-    const res = await fetch(`${OPENWHISPR_API_URL}/api/notes/delete-all`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (res.ok) {
-      const data = (await res.json()) as { deleted?: number };
-      return { deleted: data.deleted ?? 0, errors: 0 };
-    }
+    const data = await cloudDelete<{ deleted?: number }>("/api/notes/delete-all");
+    return { deleted: data?.deleted ?? 0, errors: 0 };
   } catch {
     // bulk endpoint doesn't exist — fall through
   }
 
-  // Fallback: list all and delete one-by-one
   const { notes } = await list(9999);
   const results = await Promise.allSettled(notes.map((n) => deleteNote(n.id)));
   const errors = results.filter((r) => r.status === "rejected").length;
@@ -119,14 +83,10 @@ async function deleteAll(): Promise<{ deleted: number; errors: number }> {
 }
 
 async function search(query: string, limit?: number): Promise<{ notes: SearchResult[] }> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/notes/search`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ query, ...(limit !== undefined ? { limit } : {}) }),
+  return cloudPost<{ notes: SearchResult[] }>("/api/notes/search", {
+    query,
+    ...(limit !== undefined ? { limit } : {}),
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ notes: SearchResult[] }>;
 }
 
 export { create, batchCreate, update, deleteNote, deleteAll, list, search };

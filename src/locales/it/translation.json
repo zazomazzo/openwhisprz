@@ -10,11 +10,11 @@
     },
     "noteFiles": {
       "title": "Salva note come file",
-      "description": "Salva automaticamente le note come file .md su disco, organizzate per cartella",
+      "description": "Salva automaticamente note e trascrizioni come file su disco, organizzati per cartella",
       "path": "Percorso di salvataggio",
       "changePath": "Cambia percorso",
       "rebuild": "Ricostruisci tutti i file",
-      "rebuildDescription": "Risincronizza tutte le note su disco"
+      "rebuildDescription": "Risincronizza tutte le note e trascrizioni su disco"
     }
   },
   "tray": {
@@ -1410,6 +1410,10 @@
       "usageAnalyticsDescription": "Aiutaci a migliorare OpenWhispr condividendo metriche di prestazione anonime. Non inviamo mai il contenuto delle trascrizioni, solo dati su tempi ed errori.",
       "dataRetention": "Conservazione dei dati",
       "dataRetentionDescription": "Salva trascrizioni e audio localmente nella cronologia. Se disattivato, le trascrizioni vengono incollate ma non salvate.",
+      "hoursAgo": "{{count}}h fa",
+      "justNow": "adesso",
+      "lastSynced": "Ultima sincronizzazione {{time}}",
+      "minutesAgo": "{{count}}m fa",
       "audioRetention": "Conservazione audio",
       "audioRetentionDescription": "Salva le registrazioni audio localmente per la ritrascrizione e il download. I file vengono eliminati automaticamente al termine del periodo di conservazione.",
       "audioRetentionDisabled": "Disattivato",
@@ -1678,6 +1682,7 @@
       "asTranscriptText": "Come testo semplice (.txt)",
       "asSubtitles": "Come sottotitoli (.srt)",
       "asJson": "Come JSON (.json)",
+      "asTranscriptMarkdown": "Come Markdown (.md)",
       "raw": "Originale",
       "enhanced": "Migliorato",
       "saving": "Salvataggio",

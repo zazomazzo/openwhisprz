@@ -1972,10 +1972,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     if (this.context === "notes") {
       return localStorage.getItem("notesStreamingPreference") === "streaming";
     }
-    if (this.sttConfig) {
-      return this.sttConfig.dictation?.mode === "streaming";
-    }
-    return localStorage.getItem("deepgramStreaming") !== "false";
+    if (!this.sttConfig) return false;
+    return this.sttConfig.dictation?.mode === "streaming";
   }
 
   async warmupStreamingConnection({ isSignedIn: isSignedInOverride } = {}) {

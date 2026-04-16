@@ -1,4 +1,4 @@
-import { OPENWHISPR_API_URL } from "../config/constants.js";
+import { cloudGet, cloudPost, cloudPatch, cloudDelete } from "./cloudApi.js";
 
 interface ConversationInput {
   client_conversation_id?: string;
@@ -31,43 +31,23 @@ interface CloudMessage {
   created_at: string;
 }
 
+interface CloudConversationWithMessages extends CloudConversation {
+  messages?: CloudMessage[];
+}
+
 async function create(input: ConversationInput): Promise<CloudConversation> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/conversations/create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<CloudConversation>;
+  return cloudPost<CloudConversation>("/api/conversations/create", input);
 }
 
 async function update(
   id: string,
   updates: { title?: string; archived_at?: string }
 ): Promise<CloudConversation> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/conversations/update`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ id, ...updates }),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<CloudConversation>;
+  return cloudPatch<CloudConversation>("/api/conversations/update", { id, ...updates });
 }
 
 async function deleteConversation(id: string): Promise<void> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/conversations/delete`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ id }),
-  });
-  if (!res.ok) throw new Error(await res.text());
-}
-
-interface CloudConversationWithMessages extends CloudConversation {
-  messages?: CloudMessage[];
+  await cloudDelete("/api/conversations/delete", { id });
 }
 
 async function list(
@@ -82,12 +62,9 @@ async function list(
   if (archived) params.set("archived", "true");
   if (include !== undefined) params.set("include", include);
   const query = params.toString();
-  const res = await fetch(
-    `${OPENWHISPR_API_URL}/api/conversations/list${query ? `?${query}` : ""}`,
-    { credentials: "include" }
+  return cloudGet<{ conversations: CloudConversationWithMessages[] }>(
+    `/api/conversations/list${query ? `?${query}` : ""}`
   );
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ conversations: CloudConversationWithMessages[] }>;
 }
 
 async function addMessage(
@@ -96,42 +73,27 @@ async function addMessage(
   content: string,
   metadata?: Record<string, unknown> | null
 ): Promise<CloudMessage> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/conversations/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({
-      conversation_id: conversationId,
-      role,
-      content,
-      ...(metadata ? { metadata } : {}),
-    }),
+  return cloudPost<CloudMessage>("/api/conversations/messages", {
+    conversation_id: conversationId,
+    role,
+    content,
+    ...(metadata ? { metadata } : {}),
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<CloudMessage>;
 }
 
 async function listMessages(conversationId: string): Promise<{ messages: CloudMessage[] }> {
   const params = new URLSearchParams({ conversation_id: conversationId });
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/conversations/messages?${params}`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ messages: CloudMessage[] }>;
+  return cloudGet<{ messages: CloudMessage[] }>(`/api/conversations/messages?${params}`);
 }
 
 async function search(
   query: string,
   limit?: number
 ): Promise<{ conversations: CloudConversation[] }> {
-  const res = await fetch(`${OPENWHISPR_API_URL}/api/conversations/search`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ query, ...(limit !== undefined ? { limit } : {}) }),
+  return cloudPost<{ conversations: CloudConversation[] }>("/api/conversations/search", {
+    query,
+    ...(limit !== undefined ? { limit } : {}),
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ conversations: CloudConversation[] }>;
 }
 
 export { create, update, deleteConversation, list, addMessage, listMessages, search };

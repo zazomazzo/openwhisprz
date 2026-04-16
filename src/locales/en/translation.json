@@ -10,11 +10,11 @@
     },
     "noteFiles": {
       "title": "Save notes as files",
-      "description": "Automatically save notes as .md files on disk, organized by folder",
+      "description": "Automatically save notes and transcripts as files on disk, organized by folder",
       "path": "Save location",
       "changePath": "Change location",
       "rebuild": "Rebuild all files",
-      "rebuildDescription": "Re-sync all notes to disk"
+      "rebuildDescription": "Re-sync all notes and transcripts to disk"
     }
   },
   "tray": {
@@ -1515,7 +1515,11 @@
       "clearAllAudio": "Clear All Audio",
       "clearAllAudioConfirm": "Delete all stored audio files? This cannot be undone.",
       "dataRetention": "Data Retention",
-      "dataRetentionDescription": "Store transcriptions and audio locally in your history. When disabled, transcriptions are pasted but not saved."
+      "dataRetentionDescription": "Store transcriptions and audio locally in your history. When disabled, transcriptions are pasted but not saved.",
+      "hoursAgo": "{{count}}h ago",
+      "justNow": "just now",
+      "lastSynced": "Last synced {{time}}",
+      "minutesAgo": "{{count}}m ago"
     },
     "prompts": {
       "description": "View, customize, and test the unified system prompt that powers text cleanup and instruction detection",
@@ -1835,6 +1839,7 @@
       "asTranscriptText": "As Plain Text (.txt)",
       "asSubtitles": "As Subtitles (.srt)",
       "asJson": "As JSON (.json)",
+      "asTranscriptMarkdown": "As Markdown (.md)",
       "raw": "Raw",
       "enhanced": "Enhanced",
       "saving": "Saving",

@@ -83,10 +83,44 @@ class MarkdownMirror {
     }
   }
 
+  writeTranscript(note, folderName, speakerMappings) {
+    if (!this._basePath) return;
+    try {
+      const segments = JSON.parse(note.transcript || "[]");
+      if (!segments.length) return;
+
+      const dirName = folderName || "Personal";
+      const dirPath = path.join(this._basePath, dirName);
+      fs.mkdirSync(dirPath, { recursive: true });
+
+      const slug = this._slugify(note.title);
+      const newFileName = `${note.id}-${slug}-transcript.md`;
+      const newFilePath = path.join(dirPath, newFileName);
+
+      const stale = this._globTranscriptFiles(note.id);
+      for (const existing of stale) {
+        if (existing !== newFilePath) {
+          try {
+            fs.unlinkSync(existing);
+          } catch {}
+        }
+      }
+
+      const { formatMd } = require("./transcriptFormatter");
+      fs.writeFileSync(newFilePath, formatMd(note, segments, speakerMappings || {}), "utf-8");
+    } catch (err) {
+      debugLogger.error(
+        "Failed to write transcript file",
+        { noteId: note.id, error: err.message },
+        "note-files"
+      );
+    }
+  }
+
   deleteNote(noteId) {
     if (!this._basePath) return;
     try {
-      const files = this._globNoteFiles(noteId);
+      const files = [...this._globNoteFiles(noteId), ...this._globTranscriptFiles(noteId)];
       for (const f of files) {
         fs.unlinkSync(f);
       }
@@ -147,12 +181,15 @@ class MarkdownMirror {
     }
   }
 
-  rebuildAll(notes, folderMap) {
+  rebuildAll(notes, folderMap, speakerMappingsMap) {
     if (!this._basePath) return;
     try {
       for (const note of notes) {
         const folderName = folderMap[note.folder_id] || "Personal";
         this.writeNote(note, folderName);
+        if (note.transcript) {
+          this.writeTranscript(note, folderName, speakerMappingsMap?.[note.id] || {});
+        }
       }
       debugLogger.info("Markdown mirror rebuild complete", { count: notes.length }, "note-files");
     } catch (err) {
@@ -184,6 +221,29 @@ class MarkdownMirror {
         const files = fs.readdirSync(dirPath);
         for (const file of files) {
           if (file.startsWith(prefix) && file.endsWith(".md")) {
+            results.push(path.join(dirPath, file));
+          }
+        }
+      }
+    } catch {}
+    return results;
+  }
+
+  _globTranscriptFiles(noteId) {
+    if (!this._basePath) return [];
+    const results = [];
+    try {
+      const prefix = `${noteId}-`;
+      const dirs = fs.readdirSync(this._basePath, { withFileTypes: true });
+      for (const dir of dirs) {
+        if (!dir.isDirectory()) continue;
+        const dirPath = path.join(this._basePath, dir.name);
+        const files = fs.readdirSync(dirPath);
+        for (const file of files) {
+          if (
+            file.startsWith(prefix) &&
+            (file.endsWith("-transcript.md") || file.endsWith("-transcript.txt"))
+          ) {
             results.push(path.join(dirPath, file));
           }
         }

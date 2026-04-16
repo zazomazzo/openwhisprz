@@ -10,11 +10,11 @@
     },
     "noteFiles": {
       "title": "將筆記儲存為檔案",
-      "description": "自動將筆記儲存為 .md 檔案到磁碟，按資料夾分類",
+      "description": "自動將筆記和逐字稿儲存為檔案到磁碟，按資料夾分類",
       "path": "儲存位置",
       "changePath": "變更位置",
       "rebuild": "重建所有檔案",
-      "rebuildDescription": "將所有筆記重新同步到磁碟"
+      "rebuildDescription": "將所有筆記和逐字稿重新同步到磁碟"
     }
   },
   "tray": {
@@ -1405,6 +1405,10 @@
       "usageAnalyticsDescription": "分享匿名的效能指標，協助我們改善 OpenWhispr。我們絕不會傳送轉錄內容——只有計時和錯誤資料。",
       "dataRetention": "資料保留",
       "dataRetentionDescription": "將轉錄和音訊本地儲存至歷史記錄。停用後，轉錄內容會被貼上但不會被儲存。",
+      "hoursAgo": "{{count}}小時前",
+      "justNow": "剛剛",
+      "lastSynced": "上次同步 {{time}}",
+      "minutesAgo": "{{count}}分鐘前",
       "audioRetention": "音訊保留",
       "audioRetentionDescription": "將音訊錄製檔案儲存在本機以便重新轉錄和下載。檔案會在保留期限過後自動刪除。",
       "audioRetentionDisabled": "已停用",
@@ -1673,6 +1677,7 @@
       "asTranscriptText": "匯出為純文字 (.txt)",
       "asSubtitles": "匯出為字幕 (.srt)",
       "asJson": "匯出為 JSON (.json)",
+      "asTranscriptMarkdown": "匯出為 Markdown (.md)",
       "raw": "原始",
       "enhanced": "已增強",
       "saving": "儲存中",
