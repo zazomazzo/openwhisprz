@@ -2240,10 +2240,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     label={t("settingsPage.general.clipboard.autoPaste")}
                     description={t("settingsPage.general.clipboard.autoPasteDescription")}
                   >
-                    <Toggle
-                      checked={autoPasteEnabled}
-                      onChange={setAutoPasteEnabled}
-                    />
+                    <Toggle checked={autoPasteEnabled} onChange={setAutoPasteEnabled} />
                   </SettingsRow>
                 </SettingsPanelRow>
                 <SettingsPanelRow>
