@@ -2092,14 +2092,26 @@ export default function SettingsPage({
                             </Button>
                           ) : (
                             <Button
-                              onClick={() =>
-                                handleCheckout(billingState.pro ? "annual" : "monthly", "pro")
-                              }
+                              onClick={async () => {
+                                const result = await usage.openCheckout({
+                                  plan: billingState.pro ? "annual" : "monthly",
+                                  tier: "pro",
+                                });
+                                if (!result.success) {
+                                  toast({
+                                    title: t("settingsPage.account.checkout.couldNotOpenTitle"),
+                                    description: t(
+                                      "settingsPage.account.checkout.couldNotOpenDescription"
+                                    ),
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
                               size="sm"
                               className="w-full"
-                              disabled={checkoutTier === "pro"}
+                              disabled={usage.checkoutLoading}
                             >
-                              {checkoutTier === "pro"
+                              {usage.checkoutLoading
                                 ? t("settingsPage.account.checkout.opening")
                                 : t("settingsPage.account.checkout.upgradeToPro")}
                             </Button>
