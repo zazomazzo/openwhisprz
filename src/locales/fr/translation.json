@@ -1458,6 +1458,7 @@
       "usageAnalyticsDescription": "Aidez-nous à améliorer OpenWhispr en partageant des métriques de performance anonymes. Nous n'envoyons jamais le contenu de vos transcriptions — uniquement des données de performance et d'erreurs.",
       "dataRetention": "Conservation des données",
       "dataRetentionDescription": "Stocker les transcriptions et l'audio localement dans votre historique. Lorsque désactivé, les transcriptions sont collées mais pas enregistrées.",
+      "lastSynced": "Dernière synchronisation {{time}}",
       "audioRetention": "Conservation de l'audio",
       "audioRetentionDescription": "Stocke les enregistrements audio localement pour la retranscription et le téléchargement. Les fichiers sont automatiquement supprimés après la période de conservation.",
       "audioRetentionDisabled": "Désactivé",
