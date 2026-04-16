@@ -49,7 +49,7 @@ export default function MeetingNotificationOverlay() {
   );
 
   return (
-    <div className="meeting-notification-window w-full h-full bg-transparent p-3 overflow-visible">
+    <div className="meeting-notification-window w-full h-full bg-transparent pl-4 pr-2 pt-4 pb-2 overflow-visible">
       <div
         className={[
           "group relative",

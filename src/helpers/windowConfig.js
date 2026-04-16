@@ -174,8 +174,7 @@ class WindowPositionUtil {
   }
 
   static getNotificationPosition(display) {
-    const width = 380;
-    const height = 88;
+    const { width, height } = NOTIFICATION_WINDOW_CONFIG;
     const MARGIN = 16;
     const workArea = display.workArea || display.bounds;
     const x = Math.max(0, workArea.x + workArea.width - width - MARGIN);
