@@ -683,6 +683,7 @@ class IPCHandlers {
         setImmediate(() => this.broadcastToWindows("note-updated", result.note));
         this._asyncVectorUpsert(result.note);
         this._asyncMirrorWrite(result.note);
+        if (updates.participants) this._tryAutoLabelOneOnOne(id);
       }
       return result;
     });
@@ -6540,6 +6541,7 @@ class IPCHandlers {
         buffers[speakerId] = Buffer.from(new Float32Array(arr).buffer);
       }
       this.databaseManager.saveNoteSpeakerEmbeddings(noteId, buffers);
+      this._tryAutoLabelOneOnOne(noteId);
       return { success: true };
     });
   }
@@ -6609,6 +6611,93 @@ class IPCHandlers {
         }
       } catch (err) {
         debugLogger.warn("Retroactive speaker mapping failed", { error: err.message });
+      }
+    });
+  }
+
+  _tryAutoLabelOneOnOne(noteId) {
+    setImmediate(async () => {
+      try {
+        const note = this.databaseManager.getNote(noteId);
+        if (!note?.participants) return;
+
+        let participants;
+        try {
+          participants = JSON.parse(note.participants);
+        } catch (_) {
+          return;
+        }
+        if (!Array.isArray(participants) || participants.length === 0) return;
+
+        const googleEmails = new Set(
+          this.databaseManager.getGoogleAccounts().map((a) => a.email.toLowerCase())
+        );
+        const isSelf = (p) => p.self === true || googleEmails.has((p.email || "").toLowerCase());
+        const otherParticipants = participants.filter((p) => !isSelf(p));
+        if (otherParticipants.length !== 1) return;
+
+        const other = otherParticipants[0];
+        const displayName = other.displayName || other.email;
+        if (!displayName) return;
+        const email = (other.email || "").toLowerCase().trim() || null;
+
+        const embeddings = this.databaseManager.getNoteSpeakerEmbeddings(noteId);
+        if (!embeddings.length) return;
+
+        const existingMappings = this.databaseManager.getSpeakerMappings(noteId);
+        const mappedSpeakers = new Set(existingMappings.map((m) => m.speaker_id));
+
+        const transcript = note.transcript ? JSON.parse(note.transcript) : [];
+        const systemSpeakers = new Set(
+          transcript.filter((s) => s.source !== "mic" && s.speaker).map((s) => s.speaker)
+        );
+
+        const unmapped = embeddings.filter(
+          (e) => !mappedSpeakers.has(e.speaker_id) && systemSpeakers.has(e.speaker_id)
+        );
+        if (!unmapped.length) return;
+
+        let profile = null;
+        for (const emb of unmapped) {
+          profile = this.databaseManager.upsertSpeakerProfile(
+            displayName,
+            email,
+            emb.embedding,
+            profile?.id ?? null
+          );
+          this.databaseManager.setSpeakerMapping(noteId, emb.speaker_id, profile.id, displayName);
+          liveSpeakerIdentifier.mapSpeaker(emb.speaker_id, profile.id, displayName, noteId);
+        }
+
+        const unmappedSystemSpeakers = new Set(unmapped.map((e) => e.speaker_id));
+        let changed = false;
+        for (const seg of transcript) {
+          if (!unmappedSystemSpeakers.has(seg.speaker)) continue;
+          if (seg.speakerName && !seg.speakerIsPlaceholder) continue;
+          if (canAutoRelabelSpeaker(seg)) {
+            applyConfirmedSpeaker(seg, { speakerName: displayName, speakerIsPlaceholder: false });
+          } else {
+            seg.speakerName = displayName;
+            seg.speakerIsPlaceholder = false;
+          }
+          changed = true;
+        }
+
+        if (changed) {
+          this.databaseManager.updateNote(noteId, { transcript: JSON.stringify(transcript) });
+          const updated = this.databaseManager.getNote(noteId);
+          if (updated) this.broadcastToWindows("note-updated", updated);
+        }
+
+        if (profile) this._retroactiveMapping(profile);
+
+        debugLogger.info(
+          "Auto-labeled 1-on-1 meeting speakers",
+          { noteId, displayName, speakerCount: unmapped.length },
+          "speaker"
+        );
+      } catch (err) {
+        debugLogger.warn("Auto-label 1-on-1 failed", { noteId, error: err.message }, "speaker");
       }
     });
   }
