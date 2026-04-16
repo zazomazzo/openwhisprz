@@ -69,7 +69,6 @@ export default function TranscriptionItem({
     errorCode === "API_KEY_MISSING" ||
     errorCode === "INVALID_KEY" ||
     errorCode === "MODEL_NOT_AVAILABLE";
-  const isAuthError = errorCode === "AUTH_EXPIRED" || errorCode === "AUTH_REQUIRED";
   const isLimitError = errorCode === "LIMIT_REACHED";
   const isOfflineError = errorCode === "OFFLINE";
 
@@ -123,16 +122,6 @@ export default function TranscriptionItem({
                       {t("controlPanel.history.failedCtaSettingsOnly")}
                     </button>
                   )}
-                </p>
-              )}
-              {isAuthError && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  <button
-                    onClick={() => onOpenSettings?.()}
-                    className="text-primary hover:underline cursor-pointer"
-                  >
-                    {t("controlPanel.history.failedCtaSignIn")}
-                  </button>
                 </p>
               )}
               {isLimitError && (
