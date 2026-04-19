@@ -177,6 +177,19 @@ jobs:
           echo "GOOGLE_CALENDAR_CLIENT_ID=${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}" >> .env
           echo "GOOGLE_CALENDAR_CLIENT_SECRET=${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}" >> .env
 
+      - name: Inject Azure signing config
+        if: secrets.AZURE_TENANT_ID != ''
+        shell: pwsh
+        run: |
+          $json = Get-Content electron-builder.json -Raw | ConvertFrom-Json
+          $json.win.azureSignOptions = @{
+            endpoint = "https://eus.codesigning.azure.net/"
+            certificateProfileName = "openwhispr-release"
+            codeSigningAccountName = "OpenWhispr"
+            publisherName = "CN=Gizmo Labs Inc., O=Gizmo Labs Inc., L=Wilmington, S=Delaware, C=US"
+          }
+          $json | ConvertTo-Json -Depth 100 | Set-Content electron-builder.json
+
       - name: Build and Sign Application
         run: npm run build:win -- --publish never
         env:

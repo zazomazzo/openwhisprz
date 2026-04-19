@@ -472,8 +472,9 @@ class ReasoningService extends BaseReasoningService {
   ): Promise<string> {
     let trimmedModel = model?.trim?.() || "";
     const provider = getModelProvider(trimmedModel);
+    const isLanReasoning = !!config.lanUrl || this.isLanReasoningMode();
 
-    if (!trimmedModel && provider !== "openwhispr") {
+    if (!trimmedModel && provider !== "openwhispr" && !isLanReasoning) {
       throw new Error("No reasoning model selected");
     }
 

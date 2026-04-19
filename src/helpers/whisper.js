@@ -271,7 +271,13 @@ class WhisperManager {
     // Start server if not running or if model changed
     if (!this.serverManager.ready || this.currentServerModel !== model) {
       debugLogger.debug("Starting/restarting whisper-server for model", { model });
-      await this.serverManager.start(modelPath, { useCuda: this.serverManager.useCuda });
+      // Use CUDA if explicitly enabled AND binary is available (re-check so mid-session
+      // CUDA downloads are picked up without a full app restart)
+      const shouldUseCuda =
+        process.env.WHISPER_CUDA_ENABLED === "true" &&
+        this.serverManager.isCudaAvailable?.();
+      debugLogger.debug("CUDA decision", { shouldUseCuda, envEnabled: process.env.WHISPER_CUDA_ENABLED, isCudaAvailable: this.serverManager.isCudaAvailable?.() });
+      await this.serverManager.start(modelPath, { useCuda: shouldUseCuda });
       this.currentServerModel = model;
     }
 

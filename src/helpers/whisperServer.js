@@ -175,6 +175,13 @@ class WhisperServerManager extends EventEmitter {
     return this.getServerBinaryPath() !== null;
   }
 
+  isCudaAvailable() {
+    const ext = process.platform === "win32" ? ".exe" : "";
+    const cudaBinary = `whisper-server-${process.platform}-${process.arch}-cuda${ext}`;
+    const cudaPath = path.join(app.getPath("userData"), "bin", cudaBinary);
+    return fs.existsSync(cudaPath);
+  }
+
   async connectRemote(url) {
     const parsed = new URL(url);
     const hostname = parsed.hostname;
