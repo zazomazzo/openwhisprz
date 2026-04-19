@@ -72,6 +72,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
 
   const effectiveModel = useSettingsStore((s) => s.reasoningModel);
   const isCloudMode = useSettingsStore(selectIsCloudReasoningMode);
+  const reasoningMode = useSettingsStore((s) => s.reasoningMode);
   const useReasoningModel = useSettingsStore((s) => s.useReasoningModel);
   const reasoningModel = useSettingsStore((s) => s.reasoningModel);
 
@@ -153,7 +154,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
         return;
       }
 
-      if (!isCloudMode && !reasoningModel) {
+      if (!isCloudMode && !reasoningModel && reasoningMode !== "self-hosted") {
         setTestResult(t("promptStudio.test.noModelSelected"));
         return;
       }

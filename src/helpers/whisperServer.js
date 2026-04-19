@@ -175,6 +175,10 @@ class WhisperServerManager extends EventEmitter {
     return this.getServerBinaryPath() !== null;
   }
 
+  isCudaAvailable() {
+    return this.getServerBinaryPath({ preferCuda: true }) !== null;
+  }
+
   async connectRemote(url) {
     const parsed = new URL(url);
     const hostname = parsed.hostname;
